@@ -5,7 +5,7 @@
 
 module.exports = {
   // GROQ Model Configuration - CHANGE ONLY HERE
-  MODEL_NAME: 'openai/gpt-oss-120b',
+  MODEL_NAME: 'llama-3.3-70b-versatile',
   
   // Game Configuration
   MIN_PLAYERS: 3,
