@@ -151,23 +151,34 @@ app.post('/api/new-game', async (req, res) => {
 
     const trimmedCategory = category.trim();
 
-    // Generate word from Groq
-    const word = await generateWordFromGroq(trimmedCategory);
-
-    // Crypto-secure random impostor selection
-    const impostorIndex = crypto.randomInt(0, numPlayers);
+    // SECRET CHAOS MODE: 1 in 20 chance everyone is impostor!
+    const chaosMode = crypto.randomInt(0, 20) === 0;
+    
+    let word;
+    let impostorIndices;
+    
+    if (chaosMode) {
+      // CHAOS MODE: Everyone is impostor, no word needed
+      word = null;
+      impostorIndices = Array.from({ length: numPlayers }, (_, i) => i);
+      console.log(`🎭 CHAOS MODE ACTIVATED! All ${numPlayers} players are impostors!`);
+    } else {
+      // Normal mode: Generate word and pick one impostor
+      word = await generateWordFromGroq(trimmedCategory);
+      impostorIndices = [crypto.randomInt(0, numPlayers)];
+      console.log(`New game created: ${numPlayers} players, impostor at index ${impostorIndices[0]}`);
+    }
 
     // Initialize game state
     gameState = {
       category: trimmedCategory,
       word,
       numPlayers,
-      impostorIndex,
+      impostorIndices,
+      chaosMode,
       revealedFlags: new Array(numPlayers).fill(false),
       createdAt: new Date().toISOString()
     };
-
-    console.log(`New game created: ${numPlayers} players, impostor at index ${impostorIndex}`);
 
     res.json({
       success: true,
@@ -215,8 +226,8 @@ app.post('/api/reveal', (req, res) => {
     // Mark as revealed
     gameState.revealedFlags[playerIndex] = true;
 
-    // Determine role and word
-    const isImpostor = playerIndex === gameState.impostorIndex;
+    // Determine role and word (check if player is in impostor indices array)
+    const isImpostor = gameState.impostorIndices.includes(playerIndex);
     const role = isImpostor ? 'IMPOSTOR' : 'INSIDER';
     const word = isImpostor ? null : gameState.word;
 
