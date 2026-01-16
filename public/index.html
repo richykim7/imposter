@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Impostor Game</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <h1>🎭 Impostor Game</h1>
+      <p class="subtitle">A party game of deception and deduction</p>
+    </header>
+
+    <!-- Info Note -->
+    <div class="info-note">
+      <small>Single game state (no accounts). Reset to start a new game.</small>
+    </div>
+
+    <!-- Status Line -->
+    <div id="statusLine" class="status-line hidden"></div>
+
+    <!-- Setup Section -->
+    <section id="setupSection" class="card">
+      <h2>Setup New Game</h2>
+      
+      <div class="form-group">
+        <label for="categoryInput">Category</label>
+        <input 
+          type="text" 
+          id="categoryInput" 
+          placeholder="e.g., Countries, Animals, Movies..." 
+          maxlength="60"
+          autocomplete="off"
+        >
+        <small class="hint">Enter a category (2-60 characters)</small>
+      </div>
+
+      <div class="form-group">
+        <label for="numPlayersInput">Number of Players</label>
+        <input 
+          type="number" 
+          id="numPlayersInput" 
+          min="3" 
+          max="12" 
+          value="3"
+        >
+        <small class="hint">3-12 players</small>
+      </div>
+
+      <button id="createGameBtn" class="btn btn-primary">
+        Create Game
+      </button>
+    </section>
+
+    <!-- Game Section -->
+    <section id="gameSection" class="card hidden">
+      <div class="game-header">
+        <h2>Active Game</h2>
+        <button id="resetBtn" class="btn btn-secondary btn-sm">Reset</button>
+      </div>
+
+      <div class="game-info">
+        <div class="info-item">
+          <strong>Category:</strong>
+          <span id="gameCategoryDisplay"></span>
+        </div>
+        <div class="info-item">
+          <strong>Players:</strong>
+          <span id="gamePlayersDisplay"></span>
+        </div>
+      </div>
+
+      <div class="players-section">
+        <h3>Reveal Players</h3>
+        <div id="playersList" class="players-list"></div>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+      <p>Powered by Groq AI • Built for Render</p>
+    </footer>
+  </div>
+
+  <!-- Reveal Modal -->
+  <div id="revealModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h2 id="modalPlayerTitle"></h2>
+      </div>
+      <div class="modal-body">
+        <div id="modalRole" class="role-display"></div>
+        <div id="modalWord" class="word-display"></div>
+        <div id="modalCountdown" class="countdown"></div>
+      </div>
+      <div class="modal-footer">
+        <button id="hideModalBtn" class="btn btn-primary">Hide Now</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
+
