@@ -13,8 +13,28 @@ const GROQ_API_KEY = process.env.GROQ_API_KEY;
 app.use(express.json());
 app.use(express.static('public'));
 
-// In-memory game state
-let gameState = null;
+// In-memory game state - keyed by game code
+let games = new Map(); // Map<gameCode, gameState>
+
+/**
+ * Generate a random game code
+ */
+function generateGameCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // Removed confusing chars
+  let code = '';
+  for (let i = 0; i < 6; i++) {
+    code += chars.charAt(crypto.randomInt(0, chars.length));
+  }
+  return code;
+}
+
+/**
+ * Get game state by code (or default for backward compatibility)
+ */
+function getGameState(gameCode = null) {
+  const code = gameCode || 'default';
+  return games.get(code) || null;
+}
 
 /**
  * Validates category string
@@ -50,21 +70,28 @@ function validateNumPlayers(numPlayers) {
 }
 
 /**
- * Calls Groq API to generate a single word/phrase from category
+ * Calls Groq API to generate a hint for a specific word
  */
-async function generateWordFromGroq(category, retryCount = 0) {
+async function generateHintFromGroq(word, category, retryCount = 0) {
   if (!GROQ_API_KEY) {
-    throw new Error('GROQ_API_KEY environment variable not set');
+    return null; // Return null if no API key, hint is optional
   }
 
-  const systemPrompt = `You are a word generator for a party game. Given a category, output EXACTLY ONE word or short phrase (2-3 words max) that belongs to that category. Rules:
-- Output ONLY the word or phrase
-- NO quotes, NO punctuation at the end
+  const systemPrompt = `You are a hint generator for a party game. Given a specific word and its category, generate a VERY SHORT, ABSTRACT hint (1-2 words only) that is extremely vague and indirect. Rules:
+- Output ONLY 1-2 words (no more!)
+- NO quotes, NO punctuation
 - NO explanations, NO extra text
-- Make it specific and concrete
+- The hint must be SO ABSTRACT that it could apply to MULTIPLE items in the category, never narrowing it down to one specific item
+- NEVER reference famous quotes, lines, catchphrases, or direct associations with the word
+- NEVER use anything that would make someone immediately think of this specific word
+- Use only VERY GENERAL characteristics: abstract concepts, broad themes, or vague associations
+- Think of the most indirect, abstract connection possible - something that gives a general direction but could fit many things
+- Examples of GOOD hints: "nostalgic" (very general feeling), "warm" (abstract quality), "distant" (vague concept)
+- Examples of BAD hints: "boxed chocolates" (too specific, references famous quote), "red door" (too direct)
+- The hint should be so vague that guessing the exact word from it alone would be nearly impossible
 - Keep it appropriate for all ages`;
 
-  const userPrompt = `Category: ${category}\n\nGenerate one word or short phrase:`;
+  const userPrompt = `Word: ${word}\nCategory: ${category}\n\nGenerate an extremely abstract, vague 1-2 word hint that could apply to many items in this category (never specific to this word):`;
 
   try {
     const controller = new AbortController();
@@ -82,8 +109,8 @@ async function generateWordFromGroq(category, retryCount = 0) {
           { role: 'system', content: systemPrompt },
           { role: 'user', content: userPrompt }
         ],
-        temperature: 0.8,
-        max_tokens: 20
+        temperature: 1.2,
+        max_tokens: 10
       }),
       signal: controller.signal
     });
@@ -96,21 +123,230 @@ async function generateWordFromGroq(category, retryCount = 0) {
     }
 
     const data = await response.json();
-    let word = data.choices?.[0]?.message?.content?.trim();
+    let hint = data.choices?.[0]?.message?.content?.trim();
 
-    if (!word) {
-      throw new Error('No word generated from API');
+    if (!hint) {
+      throw new Error('No hint generated from API');
     }
 
-    // Clean up the word - remove quotes and trailing punctuation
-    word = word.replace(/^["']|["']$/g, '').replace(/[.!?,;]+$/, '').trim();
-
-    // Validate the word is not empty after cleaning
-    if (!word || word.length === 0) {
-      throw new Error('Generated word is empty after cleaning');
+    // Clean up the hint
+    hint = hint.replace(/^["']|["']$/g, '').replace(/[.!?,;:]+$/g, '').trim();
+    
+    // Ensure we only have 1-2 words (take first two words if more)
+    const words = hint.split(/\s+/).filter(w => w.length > 0);
+    if (words.length > 2) {
+      hint = words.slice(0, 2).join(' ');
     }
 
-    return word;
+    if (!hint || hint.length === 0) {
+      throw new Error('Generated hint is empty after cleaning');
+    }
+
+    return hint;
+
+  } catch (error) {
+    console.error(`Hint generation attempt ${retryCount + 1} failed:`, error.message);
+
+    // Retry once on failure
+    if (retryCount < 1) {
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      return generateHintFromGroq(word, category, retryCount + 1);
+    }
+
+    // After 2 failures, return null (hint is optional)
+    console.warn('Hint generation failed, continuing without hint');
+    return null;
+  }
+}
+
+/**
+ * Check if two words are too similar (case-insensitive, ignoring common words)
+ */
+function areWordsTooSimilar(word1, word2) {
+  const w1 = word1.toLowerCase().trim();
+  const w2 = word2.toLowerCase().trim();
+  
+  // Exact match
+  if (w1 === w2) return true;
+  
+  // Check if one contains the other (for phrases)
+  if (w1.includes(w2) && w2.length > 3) return true;
+  if (w2.includes(w1) && w1.length > 3) return true;
+  
+  // Check word-by-word similarity for multi-word phrases
+  const words1 = w1.split(/\s+/);
+  const words2 = w2.split(/\s+/);
+  
+  // If both are single words, check if they're very close
+  if (words1.length === 1 && words2.length === 1) {
+    // Check Levenshtein distance for short words
+    if (w1.length <= 10 && w2.length <= 10) {
+      const distance = levenshteinDistance(w1, w2);
+      const maxLen = Math.max(w1.length, w2.length);
+      // If more than 80% similar, consider too similar
+      if (maxLen > 0 && (maxLen - distance) / maxLen > 0.8) {
+        return true;
+      }
+    }
+  }
+  
+  // For multi-word phrases, check if they share significant words
+  if (words1.length > 1 || words2.length > 1) {
+    const commonWords = words1.filter(w => w.length > 3 && words2.includes(w));
+    if (commonWords.length > 0 && commonWords.length >= Math.min(words1.length, words2.length) * 0.7) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
+/**
+ * Simple Levenshtein distance calculation
+ */
+function levenshteinDistance(str1, str2) {
+  const matrix = [];
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  return matrix[str2.length][str1.length];
+}
+
+/**
+ * Calls Groq API to generate multiple words/phrases from category, then randomly selects one
+ * @param {string} category - The category to generate words from
+ * @param {string[]} previousWords - Array of previously used words to avoid
+ * @param {number} retryCount - Internal retry counter
+ */
+async function generateWordFromGroq(category, previousWords = [], retryCount = 0) {
+  if (!GROQ_API_KEY) {
+    throw new Error('GROQ_API_KEY environment variable not set');
+  }
+
+  // Detect if category implies specific proper nouns (movies, countries, cities, etc.)
+  const categoryLower = category.toLowerCase().trim();
+  const isProperNounCategory = 
+    categoryLower.includes('movie') || categoryLower.includes('film') ||
+    categoryLower.includes('country') || categoryLower.includes('nation') ||
+    categoryLower.includes('city') || categoryLower.includes('capital') ||
+    categoryLower.includes('book') || categoryLower.includes('novel') ||
+    categoryLower.includes('song') || categoryLower.includes('track') ||
+    categoryLower.includes('band') || categoryLower.includes('artist') ||
+    categoryLower.includes('actor') || categoryLower.includes('actress') ||
+    categoryLower.includes('person') || categoryLower.includes('celebrity') ||
+    categoryLower.includes('brand') || categoryLower.includes('company') ||
+    categoryLower.includes('game') || categoryLower.includes('video game') ||
+    categoryLower.includes('sport') || categoryLower.includes('team');
+
+  const systemPrompt = `You are a word generator for a party game. Given a category, output EXACTLY 10 different words or short phrases (2-3 words max each) that belong to that category. Rules:
+- Output ONLY the words/phrases, one per line
+- NO quotes, NO punctuation at the end of each word
+- NO explanations, NO extra text, NO numbering
+- Make them diverse - include both common and less common examples
+- Keep them appropriate for all ages
+- Each word/phrase should be on its own line
+${isProperNounCategory ? '\nCRITICAL: If the category clearly refers to specific named items (like "movies" = movie titles, "countries" = country names), generate ACTUAL proper nouns/names, NOT generic descriptive phrases. Examples:\n- "movies" → "The Matrix", "Titanic", "Inception" (NOT "blockbuster hit", "action film")\n- "countries" → "France", "Japan", "Brazil" (NOT "European nation", "island country")\n- "cities" → "Paris", "Tokyo", "New York" (NOT "metropolitan area", "coastal city")' : '- Use concrete, specific examples rather than abstract descriptions'}`;
+
+  const userPrompt = `Category: ${category}\n\nGenerate 10 different ${isProperNounCategory ? 'specific named items (actual titles/names, not descriptions)' : 'words or short phrases'} (one per line):`;
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), config.API_TIMEOUT_MS);
+
+    const response = await fetch(config.GROQ_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${GROQ_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: config.MODEL_NAME,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        temperature: 0.9,
+        max_tokens: 200
+      }),
+      signal: controller.signal
+    });
+
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`Groq API error: ${response.status} ${errorText}`);
+    }
+
+    const data = await response.json();
+    const content = data.choices?.[0]?.message?.content?.trim();
+
+    if (!content) {
+      throw new Error('No words generated from API');
+    }
+
+    // Parse the response to extract all words
+    // Split by newlines, commas, or other separators
+    let words = content
+      .split(/\n|,|;|•|-/)
+      .map(word => word.trim())
+      .map(word => word.replace(/^["']|["']$/g, '').replace(/[.!?,;:]+$/, '').trim())
+      .filter(word => word.length > 0)
+      .filter(word => !/^\d+\.?\s*$/.test(word)); // Remove numbered items like "1. " or "1)"
+
+    // If we didn't get enough words from splitting, try to extract from the text more carefully
+    if (words.length < 3) {
+      // Try splitting by any whitespace and filtering for reasonable length words
+      words = content
+        .split(/\s+/)
+        .map(word => word.trim())
+        .map(word => word.replace(/^["']|["']$/g, '').replace(/[.!?,;:]+$/, '').trim())
+        .filter(word => word.length >= 2 && word.length <= 30)
+        .filter(word => !/^\d+\.?$/.test(word));
+    }
+
+    if (words.length === 0) {
+      throw new Error('No valid words extracted from API response');
+    }
+
+    // Filter out words that are too similar to previous words
+    let availableWords = words;
+    if (previousWords.length > 0) {
+      availableWords = words.filter(word => {
+        return !previousWords.some(prevWord => areWordsTooSimilar(word, prevWord));
+      });
+      
+      // If all words are too similar, log warning but allow one anyway
+      if (availableWords.length === 0) {
+        console.warn('All generated words are too similar to previous words, using one anyway');
+        availableWords = words; // Fallback to original list
+      } else {
+        console.log(`Filtered ${words.length - availableWords.length} words that were too similar to previous words`);
+      }
+    }
+
+    // Randomly select one word from the filtered list
+    const selectedWord = availableWords[crypto.randomInt(0, availableWords.length)];
+    
+    console.log(`Generated ${words.length} words, ${availableWords.length} available after filtering, selected: "${selectedWord}"`);
+
+    return selectedWord;
 
   } catch (error) {
     console.error(`Groq API attempt ${retryCount + 1} failed:`, error.message);
@@ -118,7 +354,7 @@ async function generateWordFromGroq(category, retryCount = 0) {
     // Retry once on failure
     if (retryCount < 1) {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return generateWordFromGroq(category, retryCount + 1);
+      return generateWordFromGroq(category, previousWords, retryCount + 1);
     }
 
     // After 2 failures, use fallback
@@ -136,7 +372,10 @@ async function generateWordFromGroq(category, retryCount = 0) {
  */
 app.post('/api/new-game', async (req, res) => {
   try {
-    const { category, numPlayers } = req.body;
+    const { category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, createWithCode = false } = req.body;
+    
+    console.log('Received request body:', JSON.stringify(req.body));
+    console.log('createWithCode from request:', createWithCode, 'type:', typeof createWithCode);
 
     // Validate inputs
     const categoryError = validateCategory(category);
@@ -149,13 +388,24 @@ app.post('/api/new-game', async (req, res) => {
       return res.status(400).json({ error: numPlayersError });
     }
 
+    // Validate number of imposters
+    const maxImposters = Math.floor((numPlayers - 1) / 2);
+    if (!Number.isInteger(numImposters) || numImposters < 1 || numImposters > maxImposters) {
+      return res.status(400).json({ 
+        error: `Number of imposters must be between 1 and ${maxImposters} for ${numPlayers} players` 
+      });
+    }
+
     const trimmedCategory = category.trim();
 
     // SECRET CHAOS MODE: 1 in 20 chance everyone is impostor!
     const chaosMode = crypto.randomInt(0, 20) === 0;
     
     let word;
+    let impostorWord = null;
+    let impostorHint = null;
     let impostorIndices;
+    let gamePreviousWords = []; // Track words used in this game
     
     if (chaosMode) {
       // CHAOS MODE: Everyone is impostor, no word needed
@@ -163,28 +413,120 @@ app.post('/api/new-game', async (req, res) => {
       impostorIndices = Array.from({ length: numPlayers }, (_, i) => i);
       console.log(`🎭 CHAOS MODE ACTIVATED! All ${numPlayers} players are impostors!`);
     } else {
-      // Normal mode: Generate word and pick one impostor
-      word = await generateWordFromGroq(trimmedCategory);
-      impostorIndices = [crypto.randomInt(0, numPlayers)];
-      console.log(`New game created: ${numPlayers} players, impostor at index ${impostorIndices[0]}`);
+      // Normal mode: Generate word and pick impostors
+      // Get existing game state to check for previous words (if resetting same game)
+      const existingGame = getGameState(req.body.gameCode || null);
+      gamePreviousWords = existingGame?.previousWords || [];
+      
+      word = await generateWordFromGroq(trimmedCategory, gamePreviousWords);
+      
+      // Select random imposters
+      const allIndices = Array.from({ length: numPlayers }, (_, i) => i);
+      const shuffled = allIndices.sort(() => 0.5 - Math.random());
+      impostorIndices = shuffled.slice(0, numImposters);
+      
+      // Track words used in this game
+      const usedWords = [word];
+      
+      // If everyone gets word mode, generate a different word for imposters
+      if (everyoneGetsWord) {
+        impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords]);
+        // Make sure impostor word is different from the main word
+        let attempts = 0;
+        while ((impostorWord === word || areWordsTooSimilar(impostorWord, word)) && attempts < 5) {
+          impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords]);
+          attempts++;
+        }
+        // Validate that we got a word
+        if (!impostorWord) {
+          throw new Error('Failed to generate word for impostor in everyone-gets-word mode');
+        }
+        usedWords.push(impostorWord);
+        console.log(`New game created: ${numPlayers} players, ${numImposters} imposters at indices [${impostorIndices.join(', ')}] with different word: "${impostorWord}"`);
+        
+        // If imposter gets hint mode, generate a hint for the impostor word
+        if (imposterGetsHint) {
+          impostorHint = await generateHintFromGroq(impostorWord, trimmedCategory);
+          console.log(`Imposter hint generated for word "${impostorWord}": "${impostorHint}"`);
+        }
+      } else {
+        console.log(`New game created: ${numPlayers} players, ${numImposters} imposters at indices [${impostorIndices.join(', ')}]`);
+        
+        // If imposter gets hint mode, generate a hint for the main word (to help impostor guess it)
+        if (imposterGetsHint) {
+          impostorHint = await generateHintFromGroq(word, trimmedCategory);
+          console.log(`Imposter hint generated for word "${word}": "${impostorHint}"`);
+        }
+      }
+      
+      // Update previous words list for this game
+      gamePreviousWords = [...gamePreviousWords, ...usedWords];
     }
 
+    // Ensure createWithCode is a boolean for use in game state
+    const shouldCreateCode = createWithCode === true || createWithCode === 'true' || String(createWithCode).toLowerCase() === 'true';
+
     // Initialize game state
-    gameState = {
+    const gameState = {
       category: trimmedCategory,
       word,
+      impostorWord,
+      impostorHint,
       numPlayers,
       impostorIndices,
       chaosMode,
+      everyoneGetsWord,
+      imposterGetsHint,
       revealedFlags: new Array(numPlayers).fill(false),
+      // Auto-assign Player 1 to host when creating with code
+      playerAssignments: shouldCreateCode ? { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } } : {},
+      previousWords: gamePreviousWords, // Track words used in this game to avoid repeats
+      allRevealed: false, // Track if host revealed all roles
+      gameEnded: false, // Track if game has ended
       createdAt: new Date().toISOString()
     };
 
-    res.json({
+    let gameCode = null;
+    
+    console.log('Creating game, createWithCode:', createWithCode, 'shouldCreateCode:', shouldCreateCode);
+    
+    if (shouldCreateCode) {
+      console.log('Generating game code...');
+      // Generate unique game code
+      let attempts = 0;
+      do {
+        gameCode = generateGameCode();
+        attempts++;
+        if (attempts > 10) {
+          console.error('Failed to generate unique game code after 10 attempts');
+          break;
+        }
+      } while (games.has(gameCode));
+      
+      if (gameCode) {
+        games.set(gameCode, gameState);
+        console.log(`✅ Game created with code: ${gameCode}`);
+      } else {
+        console.error('❌ Failed to generate game code');
+      }
+    } else {
+      // Single game mode (backward compatibility)
+      games.clear(); // Clear any old games
+      games.set('default', gameState);
+      console.log('Game created without code (default mode)');
+    }
+
+    const responseData = {
       success: true,
       numPlayers,
-      category: trimmedCategory
-    });
+      category: trimmedCategory,
+      gameCode: gameCode || null
+    };
+    
+    console.log('Response being sent:', JSON.stringify(responseData));
+    console.log('gameCode value:', gameCode, 'type:', typeof gameCode);
+    
+    res.json(responseData);
 
   } catch (error) {
     console.error('Error creating game:', error);
@@ -201,7 +543,8 @@ app.post('/api/new-game', async (req, res) => {
  */
 app.post('/api/reveal', (req, res) => {
   try {
-    const { playerIndex } = req.body;
+    const { playerIndex, gameCode = null } = req.body;
+    const gameState = getGameState(gameCode);
 
     // Check if game exists
     if (!gameState) {
@@ -229,13 +572,31 @@ app.post('/api/reveal', (req, res) => {
     // Determine role and word (check if player is in impostor indices array)
     const isImpostor = gameState.impostorIndices.includes(playerIndex);
     const role = isImpostor ? 'IMPOSTOR' : 'INSIDER';
-    const word = isImpostor ? null : gameState.word;
+    
+    // Determine word based on game mode
+    let word;
+    if (isImpostor) {
+      // Impostor gets word only if everyoneGetsWord mode is enabled
+      if (gameState.everyoneGetsWord) {
+        word = gameState.impostorWord || gameState.word; // Fallback to main word if impostor word failed
+      } else {
+        word = null;
+      }
+    } else {
+      // Insider always gets the main word
+      word = gameState.word;
+    }
+    
+    // Get hint if imposter and hint mode is enabled
+    const hint = (isImpostor && gameState.imposterGetsHint) ? gameState.impostorHint : null;
 
     res.json({
-      role,
+      role: gameState.everyoneGetsWord ? null : role, // Hide role if everyone gets word
       word,
+      hint,
       category: gameState.category,
-      playerIndex
+      playerIndex,
+      everyoneGetsWord: gameState.everyoneGetsWord
     });
 
   } catch (error) {
@@ -248,12 +609,179 @@ app.post('/api/reveal', (req, res) => {
 });
 
 /**
+ * POST /api/reveal-all
+ * Reveals all roles and words to all players (host triggers end of game)
+ */
+app.post('/api/reveal-all', (req, res) => {
+  const { gameCode = null } = req.body;
+  const gameState = getGameState(gameCode);
+  
+  if (!gameState) {
+    return res.status(404).json({ error: 'No active game found' });
+  }
+
+  gameState.allRevealed = true;
+  gameState.gameEnded = true;
+  
+  // Compile results for all players
+  const results = [];
+  for (let i = 0; i < gameState.numPlayers; i++) {
+    const isImpostor = gameState.impostorIndices.includes(i);
+    let playerWord = gameState.word || 'N/A';
+    
+    if (gameState.chaosMode) {
+      playerWord = 'No word (Chaos Mode)';
+    } else if (gameState.everyoneGetsWord && isImpostor && gameState.impostorWord) {
+      playerWord = gameState.impostorWord;
+    }
+    
+    results.push({
+      playerNumber: i + 1,
+      role: isImpostor ? 'Impostor' : 'Insider',
+      word: playerWord,
+      hint: (isImpostor && gameState.imposterGetsHint) ? (gameState.impostorHint || null) : null
+    });
+  }
+  
+  console.log('Host revealed all roles for game:', gameCode || 'default');
+  
+  res.json({
+    success: true,
+    results,
+    category: gameState.category || 'Unknown',
+    chaosMode: gameState.chaosMode || false,
+    everyoneGetsWord: gameState.everyoneGetsWord || false
+  });
+});
+
+/**
+ * POST /api/new-game-same-code
+ * Creates a new game with the same game code (for continuing with same players)
+ */
+app.post('/api/new-game-same-code', async (req, res) => {
+  const { gameCode, category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false } = req.body;
+  
+  if (!gameCode) {
+    return res.status(400).json({ error: 'Game code is required' });
+  }
+  
+  const existingGame = getGameState(gameCode);
+  if (!existingGame) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+  
+  try {
+    // Use the same parameters or new ones provided
+    const finalCategory = category || existingGame.category;
+    const finalNumPlayers = numPlayers || existingGame.numPlayers;
+    const finalNumImposters = numImposters || (existingGame.impostorIndices?.length || 1);
+    const finalEveryoneGetsWord = everyoneGetsWord !== undefined ? everyoneGetsWord : existingGame.everyoneGetsWord;
+    const finalImposterGetsHint = imposterGetsHint !== undefined ? imposterGetsHint : existingGame.imposterGetsHint;
+    
+    // Validate
+    const categoryError = validateCategory(finalCategory);
+    if (categoryError) {
+      return res.status(400).json({ error: categoryError });
+    }
+    
+    const trimmedCategory = finalCategory.trim();
+    
+    // Keep the player assignments from the previous game
+    const previousPlayerAssignments = existingGame.playerAssignments || {};
+    
+    // Get previous words to avoid repeats
+    const previousWords = existingGame.previousWords || [];
+    
+    // Generate new game (similar to /api/new-game logic)
+    const chaosMode = crypto.randomInt(0, 20) === 0;
+    
+    let word;
+    let impostorWord = null;
+    let impostorHint = null;
+    let impostorIndices;
+    let gamePreviousWords = [...previousWords];
+    
+    if (chaosMode) {
+      word = null;
+      impostorIndices = Array.from({ length: finalNumPlayers }, (_, i) => i);
+      console.log(`🎭 CHAOS MODE ACTIVATED! All ${finalNumPlayers} players are impostors!`);
+    } else {
+      word = await generateWordFromGroq(trimmedCategory, gamePreviousWords);
+      
+      const allIndices = Array.from({ length: finalNumPlayers }, (_, i) => i);
+      const shuffled = allIndices.sort(() => 0.5 - Math.random());
+      impostorIndices = shuffled.slice(0, finalNumImposters);
+      
+      const usedWords = [word];
+      
+      if (finalEveryoneGetsWord) {
+        impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords]);
+        let attempts = 0;
+        while ((impostorWord === word || areWordsTooSimilar(impostorWord, word)) && attempts < 5) {
+          impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords]);
+          attempts++;
+        }
+        if (!impostorWord) {
+          throw new Error('Failed to generate word for impostor');
+        }
+        usedWords.push(impostorWord);
+        
+        if (finalImposterGetsHint) {
+          impostorHint = await generateHintFromGroq(impostorWord, trimmedCategory);
+        }
+      } else if (finalImposterGetsHint) {
+        impostorHint = await generateHintFromGroq(word, trimmedCategory);
+      }
+      
+      gamePreviousWords = [...gamePreviousWords, ...usedWords];
+    }
+    
+    // Create new game state
+    const newGameState = {
+      category: trimmedCategory,
+      word,
+      impostorWord,
+      impostorHint,
+      numPlayers: finalNumPlayers,
+      impostorIndices,
+      chaosMode,
+      everyoneGetsWord: finalEveryoneGetsWord,
+      imposterGetsHint: finalImposterGetsHint,
+      revealedFlags: new Array(finalNumPlayers).fill(false),
+      playerAssignments: previousPlayerAssignments, // Keep same players
+      previousWords: gamePreviousWords,
+      allRevealed: false,
+      gameEnded: false,
+      createdAt: new Date().toISOString()
+    };
+    
+    // Replace the game state with new one
+    games.set(gameCode, newGameState);
+    
+    console.log(`New game created with existing code ${gameCode}, category: ${trimmedCategory}`);
+    
+    res.json({
+      success: true,
+      gameCode,
+      category: trimmedCategory,
+      numPlayers: finalNumPlayers
+    });
+    
+  } catch (error) {
+    console.error('Error creating new game with same code:', error);
+    res.status(500).json({ error: error.message || 'Failed to create new game' });
+  }
+});
+
+/**
  * POST /api/reset
  * Clears the current game state
  */
 app.post('/api/reset', (req, res) => {
-  gameState = null;
-  console.log('Game state reset');
+  const { gameCode = null } = req.body;
+  const code = gameCode || 'default';
+  games.delete(code);
+  console.log(`Game state reset for code: ${code || 'default'}`);
   res.json({ success: true, message: 'Game reset successfully' });
 });
 
@@ -262,6 +790,9 @@ app.post('/api/reset', (req, res) => {
  * Returns current game status (without revealing sensitive info)
  */
 app.get('/api/status', (req, res) => {
+  const { gameCode = null } = req.query;
+  const gameState = getGameState(gameCode);
+  
   if (!gameState) {
     return res.json({ active: false });
   }
@@ -271,8 +802,83 @@ app.get('/api/status', (req, res) => {
     category: gameState.category,
     numPlayers: gameState.numPlayers,
     revealedCount: gameState.revealedFlags.filter(Boolean).length,
+    createdAt: gameState.createdAt,
+    playerAssignments: gameState.playerAssignments,
+    allRevealed: gameState.allRevealed,
+    gameEnded: gameState.gameEnded
+  });
+});
+
+/**
+ * GET /api/game/:code
+ * Get game info by code (for joining)
+ */
+app.get('/api/game/:code', (req, res) => {
+  const { code } = req.params;
+  const gameState = getGameState(code.toUpperCase());
+  
+  if (!gameState) {
+    return res.status(404).json({ error: 'Game not found' });
+  }
+
+  res.json({
+    active: true,
+    category: gameState.category,
+    numPlayers: gameState.numPlayers,
+    playerAssignments: gameState.playerAssignments,
     createdAt: gameState.createdAt
   });
+});
+
+/**
+ * POST /api/game/:code/join
+ * Join a game with a player number
+ */
+app.post('/api/game/:code/join', (req, res) => {
+  try {
+    const { code } = req.params;
+    const { playerNumber, playerName = '' } = req.body;
+    const gameState = getGameState(code.toUpperCase());
+    
+    if (!gameState) {
+      return res.status(404).json({ error: 'Game not found' });
+    }
+
+    // Validate player number
+    if (!Number.isInteger(playerNumber) || playerNumber < 1 || playerNumber > gameState.numPlayers) {
+      return res.status(400).json({
+        error: `Invalid player number. Must be between 1 and ${gameState.numPlayers}`
+      });
+    }
+
+    const playerIndex = playerNumber - 1; // Convert to 0-based index
+
+    // Check if player number is already taken
+    if (gameState.playerAssignments[playerNumber]) {
+      return res.status(409).json({
+        error: `Player ${playerNumber} is already taken`
+      });
+    }
+
+    // Assign player
+    gameState.playerAssignments[playerNumber] = {
+      name: playerName || `Player ${playerNumber}`,
+      joinedAt: new Date().toISOString()
+    };
+
+    res.json({
+      success: true,
+      playerNumber,
+      playerIndex
+    });
+
+  } catch (error) {
+    console.error('Error joining game:', error);
+    res.status(500).json({
+      error: 'Failed to join game',
+      details: error.message
+    });
+  }
 });
 
 /**
