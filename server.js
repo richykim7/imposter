@@ -486,45 +486,38 @@ app.post('/api/new-game', async (req, res) => {
       createdAt: new Date().toISOString()
     };
 
+    // Always generate a unique game code (for game isolation)
     let gameCode = null;
-    
-    console.log('Creating game, createWithCode:', createWithCode, 'shouldCreateCode:', shouldCreateCode);
-    
-    if (shouldCreateCode) {
-      console.log('Generating game code...');
-      // Generate unique game code
-      let attempts = 0;
-      do {
-        gameCode = generateGameCode();
-        attempts++;
-        if (attempts > 10) {
-          console.error('Failed to generate unique game code after 10 attempts');
-          break;
-        }
-      } while (games.has(gameCode));
-      
-      if (gameCode) {
-        games.set(gameCode, gameState);
-        console.log(`✅ Game created with code: ${gameCode}`);
-      } else {
-        console.error('❌ Failed to generate game code');
+    let attempts = 0;
+    do {
+      gameCode = generateGameCode();
+      attempts++;
+      if (attempts > 10) {
+        console.error('Failed to generate unique game code after 10 attempts');
+        break;
       }
+    } while (games.has(gameCode));
+    
+    if (gameCode) {
+      games.set(gameCode, gameState);
+      console.log(`✅ Game created with code: ${gameCode} (shareable: ${shouldCreateCode})`);
     } else {
-      // Single game mode (backward compatibility)
-      games.clear(); // Clear any old games
-      games.set('default', gameState);
-      console.log('Game created without code (default mode)');
+      // Fallback: use a random string if code generation fails
+      gameCode = 'game_' + crypto.randomBytes(4).toString('hex');
+      games.set(gameCode, gameState);
+      console.log(`⚠️ Game created with fallback code: ${gameCode}`);
     }
 
     const responseData = {
       success: true,
       numPlayers,
       category: trimmedCategory,
-      gameCode: gameCode || null
+      // Only return the game code if user wants to share it
+      // But we always use unique codes internally for isolation
+      gameCode: shouldCreateCode ? gameCode : gameCode // Always return code now for session tracking
     };
     
     console.log('Response being sent:', JSON.stringify(responseData));
-    console.log('gameCode value:', gameCode, 'type:', typeof gameCode);
     
     res.json(responseData);
 

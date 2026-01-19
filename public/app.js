@@ -75,42 +75,46 @@ async function init() {
     const response = await fetch('/api/config');
     appConfig = await response.json();
     
-    // Check if there's an active game
-    const statusResponse = await fetch('/api/status');
-    const status = await statusResponse.json();
+    // Check if user has localStorage data (proof they belong to a game)
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlGameCode = urlParams.get('code');
+    const storedGameCode = localStorage.getItem('gameCode');
+    const storedPlayerNumber = localStorage.getItem('playerNumber');
+    
+    // Only try to restore a game if user has a game code (from URL or localStorage)
+    if (urlGameCode || storedGameCode) {
+      const gameCodeToCheck = urlGameCode || storedGameCode;
+      
+      // Check if that specific game exists
+      const statusResponse = await fetch(`/api/status?gameCode=${gameCodeToCheck}`);
+      const status = await statusResponse.json();
     
     if (status.active) {
       currentGame = {
         category: status.category,
         numPlayers: status.numPlayers,
-        revealedCount: status.revealedCount,
-        playerAssignments: status.playerAssignments || {}
-      };
-      
-      // Check if there's a game code in URL or localStorage
-      const urlParams = new URLSearchParams(window.location.search);
-      const urlGameCode = urlParams.get('code');
-      const storedGameCode = localStorage.getItem('gameCode');
-      const storedPlayerNumber = localStorage.getItem('playerNumber');
-      
-      if (urlGameCode || storedGameCode) {
-        currentGameCode = urlGameCode || storedGameCode;
-        // If Player 1 is assigned and we're the host, set myPlayerNumber
-        if (status.playerAssignments && status.playerAssignments[1]) {
-          // Check if this is the host (Player 1 is already assigned)
-          myPlayerNumber = storedPlayerNumber ? parseInt(storedPlayerNumber, 10) : 1;
-          isHost = (myPlayerNumber === 1);
-        } else {
-          isHost = false;
-        }
-      } else {
-        // No game code = single player mode, host is true
-        isHost = true;
-        myPlayerNumber = null;
-      }
-      
+          revealedCount: status.revealedCount,
+          playerAssignments: status.playerAssignments || {}
+        };
+        
+        currentGameCode = gameCodeToCheck;
+        myPlayerNumber = storedPlayerNumber ? parseInt(storedPlayerNumber, 10) : 1;
+        isHost = (myPlayerNumber === 1);
+        
+        // Update localStorage in case it came from URL
+        localStorage.setItem('gameCode', gameCodeToCheck);
+        
       showGameSection();
+        startPolling();
+      } else {
+        // Game no longer exists, clear localStorage and show setup
+        localStorage.removeItem('gameCode');
+        localStorage.removeItem('playerNumber');
+        showSetupSection();
+      }
     } else {
+      // No game code = fresh visitor, show setup
+      // DO NOT automatically load into someone else's "default" game
       showSetupSection();
     }
   } catch (error) {
@@ -170,8 +174,10 @@ function showGameSection() {
   gameCategoryDisplay.textContent = currentGame.category;
   gamePlayersDisplay.textContent = currentGame.numPlayers;
   
-  // Show game code if it exists
-  if (currentGameCode && gameCodeDisplay && gameCodeValue) {
+  // Show game code only for multiplayer games (where myPlayerNumber is set)
+  // Single-device games have codes for isolation but we don't display them
+  const isMultiplayerGame = myPlayerNumber !== null;
+  if (currentGameCode && gameCodeDisplay && gameCodeValue && isMultiplayerGame) {
     gameCodeValue.textContent = currentGameCode;
     gameCodeDisplay.classList.remove('hidden');
   } else if (gameCodeDisplay) {
@@ -415,20 +421,24 @@ async function createGame() {
     currentGameCode = data.gameCode || null;
     isHost = true;
     
-    // Host is automatically Player 1 when creating with code
-    if (currentGameCode) {
+    // Always store game code for session tracking
+    currentGameCode = data.gameCode;
+    localStorage.setItem('gameCode', currentGameCode);
+    
+    if (createWithCodeEnabled) {
+      // Multiplayer mode: host is Player 1
       myPlayerNumber = 1;
+      isHost = true;
       currentGame.playerAssignments = { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } };
-      // Store in localStorage for persistence
-      localStorage.setItem('gameCode', currentGameCode);
       localStorage.setItem('playerNumber', '1');
       showStatus(`Game created! Code: ${currentGameCode} — You are Player 1`, 'success');
       startPolling();
     } else {
+      // Single-device mode: no player numbers, just host
       myPlayerNumber = null;
-      localStorage.removeItem('gameCode');
+      isHost = true;
       localStorage.removeItem('playerNumber');
-    showStatus('Game created successfully!', 'success');
+      showStatus('Game created successfully!', 'success');
     }
     
     showGameSection();
@@ -773,7 +783,7 @@ async function revealAll() {
   if (!confirm('Reveal all roles and words? This will end the current game.')) {
     return;
   }
-
+  
   try {
     showStatus('Revealing...', 'loading');
     
