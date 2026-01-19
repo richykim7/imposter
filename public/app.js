@@ -83,9 +83,32 @@ async function init() {
       currentGame = {
         category: status.category,
         numPlayers: status.numPlayers,
-        revealedCount: status.revealedCount
+        revealedCount: status.revealedCount,
+        playerAssignments: status.playerAssignments || {}
       };
-      isHost = true;
+      
+      // Check if there's a game code in URL or localStorage
+      const urlParams = new URLSearchParams(window.location.search);
+      const urlGameCode = urlParams.get('code');
+      const storedGameCode = localStorage.getItem('gameCode');
+      const storedPlayerNumber = localStorage.getItem('playerNumber');
+      
+      if (urlGameCode || storedGameCode) {
+        currentGameCode = urlGameCode || storedGameCode;
+        // If Player 1 is assigned and we're the host, set myPlayerNumber
+        if (status.playerAssignments && status.playerAssignments[1]) {
+          // Check if this is the host (Player 1 is already assigned)
+          myPlayerNumber = storedPlayerNumber ? parseInt(storedPlayerNumber, 10) : 1;
+          isHost = (myPlayerNumber === 1);
+        } else {
+          isHost = false;
+        }
+      } else {
+        // No game code = single player mode, host is true
+        isHost = true;
+        myPlayerNumber = null;
+      }
+      
       showGameSection();
     } else {
       showSetupSection();
@@ -112,12 +135,16 @@ function showSetupSection() {
   gameSection.classList.add('hidden');
   joinSection.classList.add('hidden');
   playerSelectionSection.classList.add('hidden');
+  if (newRoundSection) newRoundSection.classList.add('hidden');
   currentGame = null;
   currentGameCode = null;
   myPlayerNumber = null;
   createWithCodeEnabled = false;
   isHost = false;
   stopPolling();
+  // Clear localStorage when going back to setup
+  localStorage.removeItem('gameCode');
+  localStorage.removeItem('playerNumber');
   // Reset player selection
   selectPlayerCount(3);
   selectImposterCount(1);
@@ -151,14 +178,21 @@ function showGameSection() {
     gameCodeDisplay.classList.add('hidden');
   }
   
-  // Show/hide host buttons (only Player 1 can see these)
+  // Show/hide host buttons
+  // Reveal All: Only Player 1/host can see this
+  // Reset: Always visible as fallback if stuck (anyone can reset)
   const isPlayer1 = myPlayerNumber === 1;
-  if (isPlayer1) {
+  const shouldShowRevealAll = isPlayer1 || isHost || !currentGameCode;
+  
+  if (shouldShowRevealAll) {
     if (revealAllBtn) revealAllBtn.style.display = 'block';
-    if (resetBtn) resetBtn.style.display = 'block';
   } else {
     if (revealAllBtn) revealAllBtn.style.display = 'none';
-    if (resetBtn) resetBtn.style.display = 'none';
+  }
+  
+  // Reset button is always visible when there's an active game (fallback for stuck states)
+  if (resetBtn) {
+    resetBtn.style.display = 'block';
   }
   
   renderPlayersList();
@@ -385,10 +419,15 @@ async function createGame() {
     if (currentGameCode) {
       myPlayerNumber = 1;
       currentGame.playerAssignments = { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } };
+      // Store in localStorage for persistence
+      localStorage.setItem('gameCode', currentGameCode);
+      localStorage.setItem('playerNumber', '1');
       showStatus(`Game created! Code: ${currentGameCode} — You are Player 1`, 'success');
       startPolling();
     } else {
       myPlayerNumber = null;
+      localStorage.removeItem('gameCode');
+      localStorage.removeItem('playerNumber');
     showStatus('Game created successfully!', 'success');
     }
     
@@ -516,6 +555,11 @@ async function confirmPlayerJoin() {
     
     showStatus('Joined successfully!', 'success');
     isHost = false;
+    // Store in localStorage for persistence
+    if (currentGameCode) {
+      localStorage.setItem('gameCode', currentGameCode);
+      localStorage.setItem('playerNumber', myPlayerNumber.toString());
+    }
     startPolling();
     showGameSection();
     
@@ -683,26 +727,38 @@ function hideRevealModal() {
  * Reset game
  */
 async function resetGame() {
-  if (!confirm('Are you sure you want to reset the game?')) {
+  if (!confirm('Are you sure you want to reset the game? This will end the current game for all players.')) {
     return;
   }
   
+  stopPolling();
+  
+  // Save game code before clearing state
+  const gameCodeToReset = currentGameCode;
+  
+  // Always clear local state first (so user can get unstuck even if server fails)
+  localStorage.removeItem('gameCode');
+  localStorage.removeItem('playerNumber');
+  currentGameCode = null;
+  myPlayerNumber = null;
+  isHost = false;
+  
   try {
-    stopPolling();
-    
+    // Try to reset on server, but don't block if it fails
     await fetch('/api/reset', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameCode: currentGameCode })
+      body: JSON.stringify({ gameCode: gameCodeToReset })
     });
     
     showStatus('Game reset successfully', 'success');
-    showSetupSection();
-    
   } catch (error) {
     console.error('Reset error:', error);
-    showStatus('Failed to reset game', 'error');
+    // Still show success since we cleared local state
+    showStatus('Game reset (local state cleared)', 'success');
   }
+  
+  showSetupSection();
 }
 
 /**
@@ -726,9 +782,9 @@ async function revealAll() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ gameCode: currentGameCode })
     });
-
+    
     const data = await response.json();
-
+    
     if (!response.ok) {
       throw new Error(data.error || 'Failed to reveal all');
     }
