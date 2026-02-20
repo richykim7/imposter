@@ -16,7 +16,6 @@ const imposterButtons = document.querySelectorAll('.imposter-btn');
 const createGameBtn = document.getElementById('createGameBtn');
 const resetBtn = document.getElementById('resetBtn');
 const revealAllBtn = document.getElementById('revealAllBtn');
-const newGameSameCodeBtn = document.getElementById('newGameSameCodeBtn');
 const gameCategoryDisplay = document.getElementById('gameCategoryDisplay');
 const gamePlayersDisplay = document.getElementById('gamePlayersDisplay');
 const gameCodeDisplay = document.getElementById('gameCodeDisplay');
@@ -36,7 +35,6 @@ const settingsToggle = document.getElementById('settingsToggle');
 const settingsContent = document.getElementById('settingsContent');
 const everyoneGetsWordToggle = document.getElementById('everyoneGetsWordToggle');
 const imposterGetsHintToggle = document.getElementById('imposterGetsHintToggle');
-const createWithCodeBtn = document.getElementById('createWithCodeBtn');
 const joinSection = document.getElementById('joinSection');
 const gameCodeInput = document.getElementById('gameCodeInput');
 const joinGameBtn = document.getElementById('joinGameBtn');
@@ -70,7 +68,6 @@ let customInputActive = false;
 let currentGameCode = null;
 let myPlayerNumber = null;
 let pollingInterval = null;
-let createWithCodeEnabled = false;
 let isHost = false;
 
 /**
@@ -87,15 +84,13 @@ async function init() {
     const storedGameCode = localStorage.getItem('gameCode');
     const storedPlayerNumber = localStorage.getItem('playerNumber');
     
-    // Only try to restore a game if user has a game code (from URL or localStorage)
     if (urlGameCode || storedGameCode) {
       const gameCodeToCheck = urlGameCode || storedGameCode;
       
-      // Check if that specific game exists
       const statusResponse = await fetch(`/api/status?gameCode=${gameCodeToCheck}`);
       const status = await statusResponse.json();
     
-    if (status.active) {
+      if (status.active) {
         currentGame = {
           category: status.category,
           numPlayers: status.numPlayers,
@@ -145,7 +140,6 @@ function showSetupSection() {
   currentGame = null;
   currentGameCode = null;
   myPlayerNumber = null;
-  createWithCodeEnabled = false;
   isHost = false;
   stopPolling();
   localStorage.removeItem('gameCode');
@@ -156,10 +150,6 @@ function showSetupSection() {
   customInputActive = false;
   customPlayersInput.classList.add('hidden');
   numPlayersInput.value = '';
-  // Reset code button
-  if (createWithCodeBtn) {
-    createWithCodeBtn.classList.remove('active');
-  }
 }
 
 /**
@@ -175,32 +165,18 @@ function showGameSection() {
   gameCategoryDisplay.textContent = currentGame.category;
   gamePlayersDisplay.textContent = currentGame.numPlayers;
   
-  // Show game code only for multiplayer games (where myPlayerNumber is set)
-  // Single-device games have codes for isolation but we don't display them
-  const isMultiplayerGame = myPlayerNumber !== null;
-  if (currentGameCode && gameCodeDisplay && gameCodeValue && isMultiplayerGame) {
+  // Always show game code
+  if (currentGameCode && gameCodeDisplay && gameCodeValue) {
     gameCodeValue.textContent = currentGameCode;
     gameCodeDisplay.classList.remove('hidden');
-  } else if (gameCodeDisplay) {
-    gameCodeDisplay.classList.add('hidden');
   }
   
-  // Show/hide host buttons
-  // Reveal All: Only Player 1/host can see this
-  // Reset: Always visible as fallback if stuck (anyone can reset)
+  // Reveal All: only host (Player 1) can see this
   const isPlayer1 = myPlayerNumber === 1;
-  const shouldShowRevealAll = isPlayer1 || isHost || !currentGameCode;
+  if (revealAllBtn) revealAllBtn.style.display = isPlayer1 ? 'block' : 'none';
   
-  if (shouldShowRevealAll) {
-    if (revealAllBtn) revealAllBtn.style.display = 'block';
-  } else {
-    if (revealAllBtn) revealAllBtn.style.display = 'none';
-  }
-  
-  // Reset button is always visible when there's an active game (fallback for stuck states)
-  if (resetBtn) {
-    resetBtn.style.display = 'block';
-  }
+  // Reset: always visible as fallback
+  if (resetBtn) resetBtn.style.display = 'block';
   
   renderPlayersList();
 }
@@ -390,7 +366,6 @@ async function createGame() {
     
     const everyoneGetsWord = everyoneGetsWordToggle.checked;
     const imposterGetsHint = imposterGetsHintToggle.checked;
-    const createWithCode = createWithCodeEnabled;
     const numImposters = numPlayers >= 4 ? selectedImposters : 1;
     
     const response = await fetch('/api/new-game', {
@@ -402,7 +377,6 @@ async function createGame() {
         numImposters,
         everyoneGetsWord,
         imposterGetsHint,
-        createWithCode,
         difficulty: selectedDifficulty
       })
     });
@@ -413,33 +387,22 @@ async function createGame() {
       throw new Error(data.error || 'Failed to create game');
     }
     
+    currentGameCode = data.gameCode;
+    myPlayerNumber = 1;
+    isHost = true;
+    
     currentGame = {
       category: data.category,
       numPlayers: data.numPlayers,
       revealedCount: 0,
-      playerAssignments: {}
+      playerAssignments: { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } }
     };
     
-    currentGameCode = data.gameCode;
-    isHost = true;
     localStorage.setItem('gameCode', currentGameCode);
+    localStorage.setItem('playerNumber', '1');
     
-    if (createWithCodeEnabled) {
-      // Multiplayer mode: host is Player 1
-      myPlayerNumber = 1;
-      isHost = true;
-      currentGame.playerAssignments = { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } };
-      localStorage.setItem('playerNumber', '1');
-      showStatus(`Game created! Code: ${currentGameCode} — You are Player 1`, 'success');
-      startPolling();
-    } else {
-      // Single-device mode: no player numbers, just host
-      myPlayerNumber = null;
-      isHost = true;
-      localStorage.removeItem('playerNumber');
-      showStatus('Game created successfully!', 'success');
-    }
-    
+    showStatus(`Game created! Code: ${currentGameCode}`, 'success');
+    startPolling();
     showGameSection();
     
   } catch (error) {
@@ -988,13 +951,6 @@ async function startNewRound() {
 }
 
 /**
- * Start new game with same code (legacy - now redirects to setup)
- */
-function startNewGameSameCode() {
-  showNewRoundSetup();
-}
-
-/**
  * Difficulty descriptions for hint text
  */
 const difficultyDescriptions = {
@@ -1167,8 +1123,7 @@ function stopPolling() {
 createGameBtn.addEventListener('click', createGame);
 if (resetBtn) resetBtn.addEventListener('click', resetGame);
 if (revealAllBtn) revealAllBtn.addEventListener('click', revealAll);
-if (newGameSameCodeBtn) newGameSameCodeBtn.addEventListener('click', startNewGameSameCode);
-if (startNewGameFromModalBtn) startNewGameFromModalBtn.addEventListener('click', startNewGameSameCode);
+if (startNewGameFromModalBtn) startNewGameFromModalBtn.addEventListener('click', showNewRoundSetup);
 if (closeRevealAllModalBtn) closeRevealAllModalBtn.addEventListener('click', closeRevealAllModal);
 if (switchToJoinBtn) switchToJoinBtn.addEventListener('click', showJoinSection);
 if (backToSetupBtn) backToSetupBtn.addEventListener('click', showCreateSection);
@@ -1183,18 +1138,6 @@ if (startNewRoundBtn) startNewRoundBtn.addEventListener('click', startNewRound);
 if (newRoundCategoryInput) {
   newRoundCategoryInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') startNewRound();
-  });
-}
-
-if (createWithCodeBtn) {
-  createWithCodeBtn.addEventListener('click', (e) => {
-    e.preventDefault();
-    createWithCodeEnabled = !createWithCodeEnabled;
-    if (createWithCodeEnabled) {
-      createWithCodeBtn.classList.add('active');
-    } else {
-      createWithCodeBtn.classList.remove('active');
-    }
   });
 }
 

@@ -16,7 +16,7 @@
 
     <!-- Info Note -->
     <div class="info-note">
-      <small>Single game state (no accounts). Reset to start a new game.</small>
+      <small>Each game gets a unique code. Share it so friends can join on their phones!</small>
     </div>
 
     <!-- Status Line -->
@@ -107,15 +107,7 @@
         </div>
       </div>
 
-      <div class="form-group" style="margin-top: 1.5rem; margin-bottom: 1rem;">
-        <button type="button" id="createWithCodeBtn" class="btn btn-code-option">
-          <span class="btn-code-icon">🔗</span>
-          <span class="btn-code-text">Create with game code</span>
-        </button>
-        <small class="hint" style="margin-top: 0.75rem; display: block; text-align: center;">Others can join with the code on their phones</small>
-      </div>
-
-      <button id="createGameBtn" class="btn btn-primary">
+      <button id="createGameBtn" class="btn btn-primary" style="margin-top: 1.5rem;">
         Create Game
       </button>
     </section>
@@ -227,17 +219,6 @@
       <div class="players-section">
         <h3>Reveal Players</h3>
         <div id="playersList" class="players-list"></div>
-      </div>
-      
-      <!-- Game Results Section (shown after reveal all) -->
-      <div id="gameResults" class="game-results hidden">
-        <h3>🎭 Game Results</h3>
-        <div id="resultsContent" class="results-content">
-          <!-- Results will be shown here -->
-        </div>
-        <button id="newGameSameCodeBtn" class="btn btn-primary" style="margin-top: 1.5rem;">
-          Start New Game (Same Players)
-        </button>
       </div>
     </section>
 
