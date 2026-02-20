@@ -62,7 +62,8 @@ function cleanupOldGames() {
   }
 }
 
-setInterval(cleanupOldGames, 60 * 60 * 1000);
+const cleanupTimer = setInterval(cleanupOldGames, 60 * 60 * 1000);
+cleanupTimer.unref();
 
 /**
  * Validates category string
@@ -342,10 +343,10 @@ ${isProperNounCategory ? '\nCRITICAL: If the category clearly refers to specific
     let words = content
       .split(/\n|;|•/)
       .map(word => word.trim())
-      .map(word => word.replace(/^[-–—]\s*/, ''))  // strip leading bullet dashes
+      .map(word => word.replace(/^[-–—]\s*/, ''))
+      .map(word => word.replace(/^\d+[\.\):\-]\s*/, ''))
       .map(word => word.replace(/^["']|["']$/g, '').replace(/[.!?,;:]+$/, '').trim())
-      .filter(word => word.length > 0)
-      .filter(word => !/^\d+\.?\s*$/.test(word)); // Remove numbered items like "1. " or "1)"
+      .filter(word => word.length > 0);
 
     // If we didn't get enough words from splitting, try to extract from the text more carefully
     if (words.length < 3) {
@@ -409,7 +410,7 @@ ${isProperNounCategory ? '\nCRITICAL: If the category clearly refers to specific
  */
 app.post('/api/new-game', async (req, res) => {
   try {
-    const { category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, difficulty = 'medium' } = req.body;
+    const { category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, difficulty = 'medium', usedWords = [] } = req.body;
 
     // Validate inputs
     const categoryError = validateCategory(category);
@@ -431,6 +432,7 @@ app.post('/api/new-game', async (req, res) => {
     }
 
     const trimmedCategory = category.trim();
+    const clientUsedWords = (Array.isArray(usedWords) ? usedWords.filter(w => typeof w === 'string') : []).slice(0, 500);
 
     // SECRET CHAOS MODE: 1 in 20 chance everyone is impostor!
     const chaosMode = crypto.randomInt(0, 20) === 0;
@@ -439,7 +441,7 @@ app.post('/api/new-game', async (req, res) => {
     let impostorWord = null;
     let impostorHint = null;
     let impostorIndices;
-    let gamePreviousWords = []; // Track words used in this game
+    let gamePreviousWords = [...clientUsedWords];
     
     if (chaosMode) {
       // CHAOS MODE: Everyone is impostor, no word needed
@@ -447,10 +449,6 @@ app.post('/api/new-game', async (req, res) => {
       impostorIndices = Array.from({ length: numPlayers }, (_, i) => i);
       console.log(`🎭 CHAOS MODE ACTIVATED! All ${numPlayers} players are impostors!`);
     } else {
-      // Normal mode: Generate word and pick impostors
-      // Get existing game state to check for previous words (if resetting same game)
-      const existingGame = getGameState(req.body.gameCode || null);
-      gamePreviousWords = existingGame?.previousWords || [];
       
       word = await generateWordFromGroq(trimmedCategory, gamePreviousWords, 0, difficulty);
       
@@ -493,8 +491,10 @@ app.post('/api/new-game', async (req, res) => {
         }
       }
       
-      // Update previous words list for this game
       gamePreviousWords = [...gamePreviousWords, ...usedWords];
+      if (gamePreviousWords.length > 50) {
+        gamePreviousWords = gamePreviousWords.slice(-50);
+      }
     }
 
     const gameState = {
@@ -676,7 +676,7 @@ app.post('/api/reveal-all', (req, res) => {
  * Creates a new game with the same game code (for continuing with same players)
  */
 app.post('/api/new-game-same-code', async (req, res) => {
-  const { gameCode, category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, difficulty } = req.body;
+  const { gameCode, category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, difficulty, usedWords = [] } = req.body;
   
   if (!gameCode) {
     return res.status(400).json({ error: 'Game code is required' });
@@ -694,6 +694,7 @@ app.post('/api/new-game-same-code', async (req, res) => {
     const finalEveryoneGetsWord = everyoneGetsWord !== undefined ? everyoneGetsWord : existingGame.everyoneGetsWord;
     const finalImposterGetsHint = imposterGetsHint !== undefined ? imposterGetsHint : existingGame.imposterGetsHint;
     const finalDifficulty = difficulty || existingGame.difficulty || 'medium';
+    const clientUsedWords = (Array.isArray(usedWords) ? usedWords.filter(w => typeof w === 'string') : []).slice(0, 500);
     
     // Validate
     const categoryError = validateCategory(finalCategory);
@@ -706,8 +707,7 @@ app.post('/api/new-game-same-code', async (req, res) => {
     // Keep the player assignments from the previous game
     const previousPlayerAssignments = existingGame.playerAssignments || {};
     
-    // Get previous words to avoid repeats
-    const previousWords = existingGame.previousWords || [];
+    const previousWords = [...clientUsedWords];
     
     // Generate new game (similar to /api/new-game logic)
     const chaosMode = crypto.randomInt(0, 20) === 0;
@@ -751,6 +751,9 @@ app.post('/api/new-game-same-code', async (req, res) => {
       }
       
       gamePreviousWords = [...gamePreviousWords, ...usedWords];
+      if (gamePreviousWords.length > 50) {
+        gamePreviousWords = gamePreviousWords.slice(-50);
+      }
     }
     
     const newGameState = {
