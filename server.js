@@ -287,7 +287,7 @@ async function generateWordFromGroq(category, previousWords = [], retryCount = 0
   const difficultyInstructions = {
     easy: '- IMPORTANT: Generate only very well-known, mainstream, household-name items that virtually EVERYONE would recognize. Think top-of-mind, iconic examples.',
     medium: '- Generate a mix of common and moderately known items. Most people would recognize most of them, but include a couple slightly less obvious ones.',
-    hard: '- IMPORTANT: Generate obscure, niche, lesser-known items that only enthusiasts or experts would recognize. Avoid anything mainstream or obvious.'
+    hard: '- IMPORTANT: Generate lesser-known, surprising, or unexpected items that go beyond the most obvious examples. Avoid the most mainstream/iconic picks, but they should still be real and recognizable to someone familiar with the category.'
   };
   const difficultyLine = difficultyInstructions[difficulty] || difficultyInstructions.medium;
 

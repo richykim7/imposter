@@ -49,6 +49,8 @@ const newRoundCodeDisplay = document.getElementById('newRoundCodeDisplay');
 const newRoundCodeValue = document.getElementById('newRoundCodeValue');
 const newRoundCategoryInput = document.getElementById('newRoundCategoryInput');
 const startNewRoundBtn = document.getElementById('startNewRoundBtn');
+const sameCategoryBtn = document.getElementById('sameCategoryBtn');
+const sameCategoryName = document.getElementById('sameCategoryName');
 const revealAllHostButtons = document.getElementById('revealAllHostButtons');
 const difficultyButtons = document.querySelectorAll('.difficulty-btn:not(.new-round-difficulty-btn)');
 const difficultyHint = document.getElementById('difficultyHint');
@@ -948,26 +950,40 @@ function showNewRoundSetup() {
     newRoundCodeValue.textContent = currentGameCode;
   }
   
+  if (sameCategoryName && currentGame) {
+    sameCategoryName.textContent = currentGame.category;
+  }
+  
   if (newRoundCategoryInput) {
     newRoundCategoryInput.value = '';
-    newRoundCategoryInput.focus();
   }
   
   selectNewRoundDifficulty('medium');
   
-  showStatus('Enter a category for the next round', 'info');
+  showStatus('Pick same category or enter a new one', 'info');
 }
 
 /**
- * Start new round with same code and new category
+ * Start new round with same category
  */
-async function startNewRound() {
+function startNewRoundSameCategory() {
+  if (!currentGame || !currentGame.category) {
+    showStatus('No category found', 'error');
+    return;
+  }
+  startNewRound(currentGame.category);
+}
+
+/**
+ * Start new round with same code and specified or new category
+ */
+async function startNewRound(overrideCategory) {
   if (!currentGameCode) {
     showStatus('No game code found', 'error');
     return;
   }
   
-  const category = newRoundCategoryInput ? newRoundCategoryInput.value.trim() : '';
+  const category = overrideCategory || (newRoundCategoryInput ? newRoundCategoryInput.value.trim() : '');
   
   if (!category || category.length < 2) {
     showStatus('Please enter a valid category (at least 2 characters)', 'error');
@@ -977,6 +993,7 @@ async function startNewRound() {
   try {
     showStatus('Creating new round...', 'loading');
     if (startNewRoundBtn) startNewRoundBtn.disabled = true;
+    if (sameCategoryBtn) sameCategoryBtn.disabled = true;
     
     const response = await fetch('/api/new-game-same-code', {
       method: 'POST',
@@ -1015,6 +1032,7 @@ async function startNewRound() {
     showStatus(error.message || 'Failed to create new round', 'error');
   } finally {
     if (startNewRoundBtn) startNewRoundBtn.disabled = false;
+    if (sameCategoryBtn) sameCategoryBtn.disabled = false;
   }
 }
 
@@ -1024,7 +1042,7 @@ async function startNewRound() {
 const difficultyDescriptions = {
   easy: 'Well-known, mainstream items everyone would recognize',
   medium: 'A balanced mix of common and moderately known items',
-  hard: 'Obscure, niche items only enthusiasts would know'
+  hard: 'Lesser-known, surprising items beyond the obvious picks'
 };
 
 /**
@@ -1204,7 +1222,8 @@ if (confirmPlayerBtn) confirmPlayerBtn.addEventListener('click', confirmPlayerJo
 if (hideModalBtn) hideModalBtn.addEventListener('click', hideRevealModal);
 if (settingsToggle) settingsToggle.addEventListener('click', toggleSettings);
 if (everyoneGetsWordToggle) everyoneGetsWordToggle.addEventListener('change', handleEveryoneGetsWordToggle);
-if (startNewRoundBtn) startNewRoundBtn.addEventListener('click', startNewRound);
+if (sameCategoryBtn) sameCategoryBtn.addEventListener('click', startNewRoundSameCategory);
+if (startNewRoundBtn) startNewRoundBtn.addEventListener('click', () => startNewRound());
 
 // Allow Enter key in new round category input
 if (newRoundCategoryInput) {
