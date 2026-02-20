@@ -340,8 +340,9 @@ ${isProperNounCategory ? '\nCRITICAL: If the category clearly refers to specific
     // Parse the response to extract all words
     // Split by newlines, commas, or other separators
     let words = content
-      .split(/\n|,|;|•|-/)
+      .split(/\n|;|•/)
       .map(word => word.trim())
+      .map(word => word.replace(/^[-–—]\s*/, ''))  // strip leading bullet dashes
       .map(word => word.replace(/^["']|["']$/g, '').replace(/[.!?,;:]+$/, '').trim())
       .filter(word => word.length > 0)
       .filter(word => !/^\d+\.?\s*$/.test(word)); // Remove numbered items like "1. " or "1)"
@@ -408,10 +409,7 @@ ${isProperNounCategory ? '\nCRITICAL: If the category clearly refers to specific
  */
 app.post('/api/new-game', async (req, res) => {
   try {
-    const { category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, createWithCode = false, difficulty = 'medium' } = req.body;
-    
-    console.log('Received request body:', JSON.stringify(req.body));
-    console.log('createWithCode from request:', createWithCode, 'type:', typeof createWithCode);
+    const { category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, difficulty = 'medium' } = req.body;
 
     // Validate inputs
     const categoryError = validateCategory(category);
@@ -499,10 +497,6 @@ app.post('/api/new-game', async (req, res) => {
       gamePreviousWords = [...gamePreviousWords, ...usedWords];
     }
 
-    // Ensure createWithCode is a boolean for use in game state
-    const shouldCreateCode = createWithCode === true || createWithCode === 'true' || String(createWithCode).toLowerCase() === 'true';
-
-    // Initialize game state
     const gameState = {
       category: trimmedCategory,
       word,
@@ -515,7 +509,7 @@ app.post('/api/new-game', async (req, res) => {
       imposterGetsHint,
       difficulty,
       revealedFlags: new Array(numPlayers).fill(false),
-      playerAssignments: shouldCreateCode ? { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } } : {},
+      playerAssignments: { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } },
       previousWords: gamePreviousWords,
       allRevealed: false,
       gameEnded: false,
@@ -536,7 +530,7 @@ app.post('/api/new-game', async (req, res) => {
     
     if (gameCode) {
       games.set(gameCode, gameState);
-      console.log(`✅ Game created with code: ${gameCode} (shareable: ${shouldCreateCode})`);
+      console.log(`✅ Game created with code: ${gameCode}`);
     } else {
       // Fallback: use a random string if code generation fails
       gameCode = 'game_' + crypto.randomBytes(4).toString('hex');
@@ -544,16 +538,12 @@ app.post('/api/new-game', async (req, res) => {
       console.log(`⚠️ Game created with fallback code: ${gameCode}`);
     }
 
-    const responseData = {
+    res.json({
       success: true,
       numPlayers,
       category: trimmedCategory,
       gameCode
-    };
-    
-    console.log('Response being sent:', JSON.stringify(responseData));
-    
-    res.json(responseData);
+    });
 
   } catch (error) {
     console.error('Error creating game:', error);
