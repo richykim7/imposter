@@ -55,6 +55,37 @@ const difficultyHint = document.getElementById('difficultyHint');
 const newRoundDifficultyButtons = document.querySelectorAll('.new-round-difficulty-btn');
 const newRoundDifficultyHint = document.getElementById('newRoundDifficultyHint');
 
+// Used words persistence (localStorage)
+const USED_WORDS_KEY = 'imposter_used_words';
+
+function getUsedWords() {
+  try {
+    const stored = localStorage.getItem(USED_WORDS_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+}
+
+function addUsedWord(word) {
+  try {
+    if (!word || typeof word !== 'string') return;
+    const words = getUsedWords();
+    const normalized = word.toLowerCase().trim();
+    if (words.some(w => w.toLowerCase().trim() === normalized)) return;
+    words.push(word.trim());
+    // Cap at 500 to avoid unbounded growth
+    if (words.length > 500) words.splice(0, words.length - 500);
+    localStorage.setItem(USED_WORDS_KEY, JSON.stringify(words));
+  } catch {
+    // localStorage may be unavailable (private browsing, quota exceeded)
+  }
+}
+
+function clearUsedWords() {
+  localStorage.removeItem(USED_WORDS_KEY);
+}
+
 // App State
 let appConfig = null;
 let currentGame = null;
@@ -69,6 +100,13 @@ let currentGameCode = null;
 let myPlayerNumber = null;
 let pollingInterval = null;
 let isHost = false;
+let revealedPlayerIndices = new Set();
+let lastKnownAssignments = null;
+
+function escapeHtml(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
 
 /**
  * Initialize the app
@@ -141,6 +179,8 @@ function showSetupSection() {
   currentGameCode = null;
   myPlayerNumber = null;
   isHost = false;
+  revealedPlayerIndices = new Set();
+  lastKnownAssignments = null;
   stopPolling();
   localStorage.removeItem('gameCode');
   localStorage.removeItem('playerNumber');
@@ -258,8 +298,15 @@ function renderPlayersList() {
     const revealBtn = document.createElement('button');
     revealBtn.className = 'btn btn-reveal';
     revealBtn.dataset.playerIndex = i;
-    revealBtn.textContent = 'Reveal';
-    revealBtn.onclick = () => revealPlayer(i);
+    
+    if (revealedPlayerIndices.has(i)) {
+      revealBtn.disabled = true;
+      revealBtn.textContent = 'Revealed ✓';
+      revealBtn.classList.add('revealed');
+    } else {
+      revealBtn.textContent = 'Reveal';
+      revealBtn.onclick = () => revealPlayer(i);
+    }
     
     playerDiv.appendChild(playerLabel);
     playerDiv.appendChild(revealBtn);
@@ -377,7 +424,8 @@ async function createGame() {
         numImposters,
         everyoneGetsWord,
         imposterGetsHint,
-        difficulty: selectedDifficulty
+        difficulty: selectedDifficulty,
+        usedWords: getUsedWords()
       })
     });
     
@@ -563,6 +611,14 @@ async function revealPlayer(playerIndex) {
     }
     
     showRevealModal(data);
+    revealedPlayerIndices.add(playerIndex);
+    
+    const btn = playersList.querySelector(`[data-player-index="${playerIndex}"]`);
+    if (btn) {
+      btn.disabled = true;
+      btn.textContent = 'Revealed ✓';
+      btn.classList.add('revealed');
+    }
     
   } catch (error) {
     console.error('Reveal error:', error);
@@ -616,6 +672,11 @@ async function revealMyRole() {
  * Show reveal modal
  */
 function showRevealModal(data) {
+  if (countdownInterval) {
+    clearInterval(countdownInterval);
+    countdownInterval = null;
+  }
+  
   modalPlayerTitle.textContent = `Player ${data.playerIndex + 1}`;
   
   // Display role (only if not in everyoneGetsWord mode)
@@ -634,7 +695,7 @@ function showRevealModal(data) {
   if (data.word) {
     modalWord.innerHTML = `
       <div class="word-label">Your word is:</div>
-      <div class="word-text">${data.word}</div>
+      <div class="word-text">${escapeHtml(data.word)}</div>
     `;
     modalWord.className = 'word-display has-word';
   } else if (data.chaosMode) {
@@ -655,11 +716,13 @@ function showRevealModal(data) {
     hintDiv.className = 'hint-display';
     hintDiv.innerHTML = `
       <div class="hint-label">Hint:</div>
-      <div class="hint-text">${data.hint}</div>
+      <div class="hint-text">${escapeHtml(data.hint)}</div>
     `;
     modalWord.after(hintDiv);
   }
   
+  if (data.word) addUsedWord(data.word);
+
   revealModal.classList.remove('hidden');
   revealModal.classList.add('show');
   
@@ -786,7 +849,7 @@ function displayRevealAllModal(data) {
   if (category) {
     const categoryDiv = document.createElement('div');
     categoryDiv.style.cssText = 'text-align: center; margin-bottom: 1rem; color: var(--text-secondary);';
-    categoryDiv.innerHTML = `<strong>Category:</strong> ${category}`;
+    categoryDiv.innerHTML = `<strong>Category:</strong> ${escapeHtml(category)}`;
     revealAllContent.appendChild(categoryDiv);
   }
   
@@ -804,6 +867,9 @@ function displayRevealAllModal(data) {
   
   if (results && results.length) {
     results.forEach(result => {
+      if (result.word && result.word !== 'N/A' && !result.word.includes('Chaos Mode')) {
+        addUsedWord(result.word);
+      }
       const resultItem = document.createElement('div');
       resultItem.className = 'reveal-all-item';
       
@@ -812,10 +878,10 @@ function displayRevealAllModal(data) {
       resultItem.innerHTML = `
         <div class="reveal-all-item-header">
           <span class="reveal-all-player-name">Player ${result.playerNumber}</span>
-          <span class="reveal-all-role ${roleClass}">${result.role}</span>
+          <span class="reveal-all-role ${roleClass}">${escapeHtml(result.role)}</span>
         </div>
-        <div class="reveal-all-word">Word: ${result.word || 'N/A'}</div>
-        ${result.hint ? `<div class="reveal-all-hint">Hint: ${result.hint}</div>` : ''}
+        <div class="reveal-all-word">Word: ${escapeHtml(result.word) || 'N/A'}</div>
+        ${result.hint ? `<div class="reveal-all-hint">Hint: ${escapeHtml(result.hint)}</div>` : ''}
       `;
       
       revealAllContent.appendChild(resultItem);
@@ -918,7 +984,8 @@ async function startNewRound() {
       body: JSON.stringify({ 
         gameCode: currentGameCode,
         category: category,
-        difficulty: newRoundDifficulty
+        difficulty: newRoundDifficulty,
+        usedWords: getUsedWords()
       })
     });
 
@@ -935,9 +1002,10 @@ async function startNewRound() {
       playerAssignments: { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } }
     };
 
-    // Host remains Player 1
     myPlayerNumber = 1;
     isHost = true;
+    revealedPlayerIndices = new Set();
+    lastKnownAssignments = null;
     
     showStatus('New round started!', 'success');
     showGameSection();
@@ -1072,10 +1140,13 @@ function startPolling() {
         return;
       }
       
-      // Update player assignments for host (Player 1)
       if (isPlayer1 && status.playerAssignments) {
-        currentGame.playerAssignments = status.playerAssignments;
-        renderPlayersList();
+        const newAssignmentsJson = JSON.stringify(status.playerAssignments);
+        if (newAssignmentsJson !== lastKnownAssignments) {
+          lastKnownAssignments = newAssignmentsJson;
+          currentGame.playerAssignments = status.playerAssignments;
+          renderPlayersList();
+        }
       }
       
       // Check for new game (category changed) - for all players
@@ -1085,8 +1156,9 @@ function startPolling() {
         gameCategoryDisplay.textContent = status.category;
         gamePlayersDisplay.textContent = status.numPlayers;
         
-        // Reset state for new round
         lastAllRevealed = false;
+        revealedPlayerIndices = new Set();
+        lastKnownAssignments = null;
         closeRevealAllModal();
         
         // Reset the reveal button for non-host players
