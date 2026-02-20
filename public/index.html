@@ -73,6 +73,16 @@
         <small class="hint">Select number of imposters</small>
       </div>
 
+      <div class="form-group">
+        <label>Difficulty</label>
+        <div class="difficulty-row">
+          <button class="difficulty-btn" data-difficulty="easy">Easy</button>
+          <button class="difficulty-btn active" data-difficulty="medium">Medium</button>
+          <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+        </div>
+        <small class="hint" id="difficultyHint">A balanced mix of common and moderately known items</small>
+      </div>
+
       <!-- Settings Section -->
       <div class="settings-section">
         <div class="settings-header">
@@ -169,6 +179,16 @@
           autocomplete="off"
         >
         <small class="hint">Enter a new category (2-60 characters)</small>
+      </div>
+
+      <div class="form-group">
+        <label>Difficulty</label>
+        <div class="difficulty-row">
+          <button class="difficulty-btn new-round-difficulty-btn" data-difficulty="easy">Easy</button>
+          <button class="difficulty-btn new-round-difficulty-btn active" data-difficulty="medium">Medium</button>
+          <button class="difficulty-btn new-round-difficulty-btn" data-difficulty="hard">Hard</button>
+        </div>
+        <small class="hint" id="newRoundDifficultyHint">A balanced mix of common and moderately known items</small>
       </div>
 
       <button id="startNewRoundBtn" class="btn btn-primary">

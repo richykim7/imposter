@@ -52,6 +52,10 @@ const newRoundCodeValue = document.getElementById('newRoundCodeValue');
 const newRoundCategoryInput = document.getElementById('newRoundCategoryInput');
 const startNewRoundBtn = document.getElementById('startNewRoundBtn');
 const revealAllHostButtons = document.getElementById('revealAllHostButtons');
+const difficultyButtons = document.querySelectorAll('.difficulty-btn:not(.new-round-difficulty-btn)');
+const difficultyHint = document.getElementById('difficultyHint');
+const newRoundDifficultyButtons = document.querySelectorAll('.new-round-difficulty-btn');
+const newRoundDifficultyHint = document.getElementById('newRoundDifficultyHint');
 
 // App State
 let appConfig = null;
@@ -60,6 +64,8 @@ let hideTimer = null;
 let countdownInterval = null;
 let selectedPlayers = 3;
 let selectedImposters = 1;
+let selectedDifficulty = 'medium';
+let newRoundDifficulty = 'medium';
 let customInputActive = false;
 let currentGameCode = null;
 let myPlayerNumber = null;
@@ -90,9 +96,9 @@ async function init() {
       const status = await statusResponse.json();
     
     if (status.active) {
-      currentGame = {
-        category: status.category,
-        numPlayers: status.numPlayers,
+        currentGame = {
+          category: status.category,
+          numPlayers: status.numPlayers,
           revealedCount: status.revealedCount,
           playerAssignments: status.playerAssignments || {}
         };
@@ -101,20 +107,16 @@ async function init() {
         myPlayerNumber = storedPlayerNumber ? parseInt(storedPlayerNumber, 10) : 1;
         isHost = (myPlayerNumber === 1);
         
-        // Update localStorage in case it came from URL
         localStorage.setItem('gameCode', gameCodeToCheck);
         
-      showGameSection();
+        showGameSection();
         startPolling();
       } else {
-        // Game no longer exists, clear localStorage and show setup
         localStorage.removeItem('gameCode');
         localStorage.removeItem('playerNumber');
         showSetupSection();
       }
     } else {
-      // No game code = fresh visitor, show setup
-      // DO NOT automatically load into someone else's "default" game
       showSetupSection();
     }
   } catch (error) {
@@ -146,12 +148,11 @@ function showSetupSection() {
   createWithCodeEnabled = false;
   isHost = false;
   stopPolling();
-  // Clear localStorage when going back to setup
   localStorage.removeItem('gameCode');
   localStorage.removeItem('playerNumber');
-  // Reset player selection
   selectPlayerCount(3);
   selectImposterCount(1);
+  selectDifficulty('medium');
   customInputActive = false;
   customPlayersInput.classList.add('hidden');
   numPlayersInput.value = '';
@@ -401,7 +402,8 @@ async function createGame() {
         numImposters,
         everyoneGetsWord,
         imposterGetsHint,
-        createWithCode
+        createWithCode,
+        difficulty: selectedDifficulty
       })
     });
     
@@ -418,11 +420,8 @@ async function createGame() {
       playerAssignments: {}
     };
     
-    currentGameCode = data.gameCode || null;
-    isHost = true;
-    
-    // Always store game code for session tracking
     currentGameCode = data.gameCode;
+    isHost = true;
     localStorage.setItem('gameCode', currentGameCode);
     
     if (createWithCodeEnabled) {
@@ -698,9 +697,8 @@ function showRevealModal(data) {
     modalWord.after(hintDiv);
   }
   
-  // Show modal with proper CSS class
   revealModal.classList.remove('hidden');
-    revealModal.classList.add('show');
+  revealModal.classList.add('show');
   
   // Auto-hide countdown
   let countdown = 10;
@@ -730,7 +728,7 @@ function hideRevealModal() {
   if (existingHint) existingHint.remove();
   
   revealModal.classList.remove('show');
-    revealModal.classList.add('hidden');
+  revealModal.classList.add('hidden');
 }
 
 /**
@@ -921,11 +919,12 @@ function showNewRoundSetup() {
     newRoundCodeValue.textContent = currentGameCode;
   }
   
-  // Clear the category input
   if (newRoundCategoryInput) {
     newRoundCategoryInput.value = '';
     newRoundCategoryInput.focus();
   }
+  
+  selectNewRoundDifficulty('medium');
   
   showStatus('Enter a category for the next round', 'info');
 }
@@ -955,7 +954,8 @@ async function startNewRound() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ 
         gameCode: currentGameCode,
-        category: category
+        category: category,
+        difficulty: newRoundDifficulty
       })
     });
 
@@ -992,6 +992,49 @@ async function startNewRound() {
  */
 function startNewGameSameCode() {
   showNewRoundSetup();
+}
+
+/**
+ * Difficulty descriptions for hint text
+ */
+const difficultyDescriptions = {
+  easy: 'Well-known, mainstream items everyone would recognize',
+  medium: 'A balanced mix of common and moderately known items',
+  hard: 'Obscure, niche items only enthusiasts would know'
+};
+
+/**
+ * Select difficulty level (setup screen)
+ */
+function selectDifficulty(level) {
+  selectedDifficulty = level;
+  difficultyButtons.forEach(btn => {
+    if (btn.dataset.difficulty === level) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  if (difficultyHint) {
+    difficultyHint.textContent = difficultyDescriptions[level] || difficultyDescriptions.medium;
+  }
+}
+
+/**
+ * Select difficulty level (new round screen)
+ */
+function selectNewRoundDifficulty(level) {
+  newRoundDifficulty = level;
+  newRoundDifficultyButtons.forEach(btn => {
+    if (btn.dataset.difficulty === level) {
+      btn.classList.add('active');
+    } else {
+      btn.classList.remove('active');
+    }
+  });
+  if (newRoundDifficultyHint) {
+    newRoundDifficultyHint.textContent = difficultyDescriptions[level] || difficultyDescriptions.medium;
+  }
 }
 
 /**
@@ -1154,6 +1197,19 @@ if (createWithCodeBtn) {
     }
   });
 }
+
+// Difficulty selection buttons
+difficultyButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectDifficulty(btn.dataset.difficulty);
+  });
+});
+
+newRoundDifficultyButtons.forEach(btn => {
+  btn.addEventListener('click', () => {
+    selectNewRoundDifficulty(btn.dataset.difficulty);
+  });
+});
 
 // Player selection buttons
 playerButtons.forEach(btn => {

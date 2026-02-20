@@ -29,12 +29,40 @@ function generateGameCode() {
 }
 
 /**
- * Get game state by code (or default for backward compatibility)
+ * Get game state by code
  */
-function getGameState(gameCode = null) {
-  const code = gameCode || 'default';
-  return games.get(code) || null;
+function getGameState(gameCode) {
+  if (!gameCode) return null;
+  return games.get(gameCode) || null;
 }
+
+/**
+ * Fisher-Yates shuffle — uniform random, unlike Array.sort(() => 0.5 - Math.random())
+ */
+function fisherYatesShuffle(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = crypto.randomInt(0, i + 1);
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/**
+ * Clean up games older than 24 hours
+ */
+function cleanupOldGames() {
+  const now = Date.now();
+  const maxAge = 24 * 60 * 60 * 1000;
+  for (const [code, game] of games) {
+    if (now - new Date(game.createdAt).getTime() > maxAge) {
+      games.delete(code);
+      console.log(`Cleaned up expired game: ${code}`);
+    }
+  }
+}
+
+setInterval(cleanupOldGames, 60 * 60 * 1000);
 
 /**
  * Validates category string
@@ -233,8 +261,9 @@ function levenshteinDistance(str1, str2) {
  * @param {string} category - The category to generate words from
  * @param {string[]} previousWords - Array of previously used words to avoid
  * @param {number} retryCount - Internal retry counter
+ * @param {string} difficulty - 'easy', 'medium', or 'hard'
  */
-async function generateWordFromGroq(category, previousWords = [], retryCount = 0) {
+async function generateWordFromGroq(category, previousWords = [], retryCount = 0, difficulty = 'medium') {
   if (!GROQ_API_KEY) {
     throw new Error('GROQ_API_KEY environment variable not set');
   }
@@ -254,11 +283,18 @@ async function generateWordFromGroq(category, previousWords = [], retryCount = 0
     categoryLower.includes('game') || categoryLower.includes('video game') ||
     categoryLower.includes('sport') || categoryLower.includes('team');
 
+  const difficultyInstructions = {
+    easy: '- IMPORTANT: Generate only very well-known, mainstream, household-name items that virtually EVERYONE would recognize. Think top-of-mind, iconic examples.',
+    medium: '- Generate a mix of common and moderately known items. Most people would recognize most of them, but include a couple slightly less obvious ones.',
+    hard: '- IMPORTANT: Generate obscure, niche, lesser-known items that only enthusiasts or experts would recognize. Avoid anything mainstream or obvious.'
+  };
+  const difficultyLine = difficultyInstructions[difficulty] || difficultyInstructions.medium;
+
   const systemPrompt = `You are a word generator for a party game. Given a category, output EXACTLY 10 different words or short phrases (2-3 words max each) that belong to that category. Rules:
 - Output ONLY the words/phrases, one per line
 - NO quotes, NO punctuation at the end of each word
 - NO explanations, NO extra text, NO numbering
-- Make them diverse - include both common and less common examples
+${difficultyLine}
 - Keep them appropriate for all ages
 - Each word/phrase should be on its own line
 ${isProperNounCategory ? '\nCRITICAL: If the category clearly refers to specific named items (like "movies" = movie titles, "countries" = country names), generate ACTUAL proper nouns/names, NOT generic descriptive phrases. Examples:\n- "movies" → "The Matrix", "Titanic", "Inception" (NOT "blockbuster hit", "action film")\n- "countries" → "France", "Japan", "Brazil" (NOT "European nation", "island country")\n- "cities" → "Paris", "Tokyo", "New York" (NOT "metropolitan area", "coastal city")' : '- Use concrete, specific examples rather than abstract descriptions'}`;
@@ -354,7 +390,7 @@ ${isProperNounCategory ? '\nCRITICAL: If the category clearly refers to specific
     // Retry once on failure
     if (retryCount < 1) {
       await new Promise(resolve => setTimeout(resolve, 1000));
-      return generateWordFromGroq(category, previousWords, retryCount + 1);
+      return generateWordFromGroq(category, previousWords, retryCount + 1, difficulty);
     }
 
     // After 2 failures, use fallback
@@ -372,7 +408,7 @@ ${isProperNounCategory ? '\nCRITICAL: If the category clearly refers to specific
  */
 app.post('/api/new-game', async (req, res) => {
   try {
-    const { category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, createWithCode = false } = req.body;
+    const { category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, createWithCode = false, difficulty = 'medium' } = req.body;
     
     console.log('Received request body:', JSON.stringify(req.body));
     console.log('createWithCode from request:', createWithCode, 'type:', typeof createWithCode);
@@ -418,11 +454,11 @@ app.post('/api/new-game', async (req, res) => {
       const existingGame = getGameState(req.body.gameCode || null);
       gamePreviousWords = existingGame?.previousWords || [];
       
-      word = await generateWordFromGroq(trimmedCategory, gamePreviousWords);
+      word = await generateWordFromGroq(trimmedCategory, gamePreviousWords, 0, difficulty);
       
-      // Select random imposters
+      // Select random imposters using Fisher-Yates shuffle
       const allIndices = Array.from({ length: numPlayers }, (_, i) => i);
-      const shuffled = allIndices.sort(() => 0.5 - Math.random());
+      const shuffled = fisherYatesShuffle(allIndices);
       impostorIndices = shuffled.slice(0, numImposters);
       
       // Track words used in this game
@@ -430,11 +466,11 @@ app.post('/api/new-game', async (req, res) => {
       
       // If everyone gets word mode, generate a different word for imposters
       if (everyoneGetsWord) {
-        impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords]);
+        impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords], 0, difficulty);
         // Make sure impostor word is different from the main word
         let attempts = 0;
         while ((impostorWord === word || areWordsTooSimilar(impostorWord, word)) && attempts < 5) {
-          impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords]);
+          impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords], 0, difficulty);
           attempts++;
         }
         // Validate that we got a word
@@ -477,12 +513,12 @@ app.post('/api/new-game', async (req, res) => {
       chaosMode,
       everyoneGetsWord,
       imposterGetsHint,
+      difficulty,
       revealedFlags: new Array(numPlayers).fill(false),
-      // Auto-assign Player 1 to host when creating with code
       playerAssignments: shouldCreateCode ? { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } } : {},
-      previousWords: gamePreviousWords, // Track words used in this game to avoid repeats
-      allRevealed: false, // Track if host revealed all roles
-      gameEnded: false, // Track if game has ended
+      previousWords: gamePreviousWords,
+      allRevealed: false,
+      gameEnded: false,
       createdAt: new Date().toISOString()
     };
 
@@ -512,9 +548,7 @@ app.post('/api/new-game', async (req, res) => {
       success: true,
       numPlayers,
       category: trimmedCategory,
-      // Only return the game code if user wants to share it
-      // But we always use unique codes internally for isolation
-      gameCode: shouldCreateCode ? gameCode : gameCode // Always return code now for session tracking
+      gameCode
     };
     
     console.log('Response being sent:', JSON.stringify(responseData));
@@ -636,7 +670,7 @@ app.post('/api/reveal-all', (req, res) => {
     });
   }
   
-  console.log('Host revealed all roles for game:', gameCode || 'default');
+  console.log('Host revealed all roles for game:', gameCode);
   
   res.json({
     success: true,
@@ -652,7 +686,7 @@ app.post('/api/reveal-all', (req, res) => {
  * Creates a new game with the same game code (for continuing with same players)
  */
 app.post('/api/new-game-same-code', async (req, res) => {
-  const { gameCode, category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false } = req.body;
+  const { gameCode, category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, difficulty } = req.body;
   
   if (!gameCode) {
     return res.status(400).json({ error: 'Game code is required' });
@@ -664,12 +698,12 @@ app.post('/api/new-game-same-code', async (req, res) => {
   }
   
   try {
-    // Use the same parameters or new ones provided
     const finalCategory = category || existingGame.category;
     const finalNumPlayers = numPlayers || existingGame.numPlayers;
     const finalNumImposters = numImposters || (existingGame.impostorIndices?.length || 1);
     const finalEveryoneGetsWord = everyoneGetsWord !== undefined ? everyoneGetsWord : existingGame.everyoneGetsWord;
     const finalImposterGetsHint = imposterGetsHint !== undefined ? imposterGetsHint : existingGame.imposterGetsHint;
+    const finalDifficulty = difficulty || existingGame.difficulty || 'medium';
     
     // Validate
     const categoryError = validateCategory(finalCategory);
@@ -699,19 +733,19 @@ app.post('/api/new-game-same-code', async (req, res) => {
       impostorIndices = Array.from({ length: finalNumPlayers }, (_, i) => i);
       console.log(`🎭 CHAOS MODE ACTIVATED! All ${finalNumPlayers} players are impostors!`);
     } else {
-      word = await generateWordFromGroq(trimmedCategory, gamePreviousWords);
+      word = await generateWordFromGroq(trimmedCategory, gamePreviousWords, 0, finalDifficulty);
       
       const allIndices = Array.from({ length: finalNumPlayers }, (_, i) => i);
-      const shuffled = allIndices.sort(() => 0.5 - Math.random());
+      const shuffled = fisherYatesShuffle(allIndices);
       impostorIndices = shuffled.slice(0, finalNumImposters);
       
       const usedWords = [word];
       
       if (finalEveryoneGetsWord) {
-        impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords]);
+        impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords], 0, finalDifficulty);
         let attempts = 0;
         while ((impostorWord === word || areWordsTooSimilar(impostorWord, word)) && attempts < 5) {
-          impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords]);
+          impostorWord = await generateWordFromGroq(trimmedCategory, [...gamePreviousWords, ...usedWords], 0, finalDifficulty);
           attempts++;
         }
         if (!impostorWord) {
@@ -729,7 +763,6 @@ app.post('/api/new-game-same-code', async (req, res) => {
       gamePreviousWords = [...gamePreviousWords, ...usedWords];
     }
     
-    // Create new game state
     const newGameState = {
       category: trimmedCategory,
       word,
@@ -740,8 +773,9 @@ app.post('/api/new-game-same-code', async (req, res) => {
       chaosMode,
       everyoneGetsWord: finalEveryoneGetsWord,
       imposterGetsHint: finalImposterGetsHint,
+      difficulty: finalDifficulty,
       revealedFlags: new Array(finalNumPlayers).fill(false),
-      playerAssignments: previousPlayerAssignments, // Keep same players
+      playerAssignments: previousPlayerAssignments,
       previousWords: gamePreviousWords,
       allRevealed: false,
       gameEnded: false,
@@ -772,9 +806,10 @@ app.post('/api/new-game-same-code', async (req, res) => {
  */
 app.post('/api/reset', (req, res) => {
   const { gameCode = null } = req.body;
-  const code = gameCode || 'default';
-  games.delete(code);
-  console.log(`Game state reset for code: ${code || 'default'}`);
+  if (gameCode) {
+    games.delete(gameCode);
+    console.log(`Game state reset for code: ${gameCode}`);
+  }
   res.json({ success: true, message: 'Game reset successfully' });
 });
 
