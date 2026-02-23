@@ -676,7 +676,7 @@ app.post('/api/reveal-all', (req, res) => {
  * Creates a new game with the same game code (for continuing with same players)
  */
 app.post('/api/new-game-same-code', async (req, res) => {
-  const { gameCode, category, numPlayers, numImposters = 1, everyoneGetsWord = false, imposterGetsHint = false, difficulty, usedWords = [] } = req.body;
+  const { gameCode, category, numPlayers, numImposters, everyoneGetsWord, imposterGetsHint, difficulty, usedWords = [] } = req.body;
   
   if (!gameCode) {
     return res.status(400).json({ error: 'Game code is required' });
@@ -691,8 +691,8 @@ app.post('/api/new-game-same-code', async (req, res) => {
     const finalCategory = category || existingGame.category;
     const finalNumPlayers = numPlayers || existingGame.numPlayers;
     const finalNumImposters = numImposters || (existingGame.impostorIndices?.length || 1);
-    const finalEveryoneGetsWord = everyoneGetsWord !== undefined ? everyoneGetsWord : existingGame.everyoneGetsWord;
-    const finalImposterGetsHint = imposterGetsHint !== undefined ? imposterGetsHint : existingGame.imposterGetsHint;
+    const finalEveryoneGetsWord = everyoneGetsWord !== undefined ? everyoneGetsWord : (existingGame.everyoneGetsWord || false);
+    const finalImposterGetsHint = imposterGetsHint !== undefined ? imposterGetsHint : (existingGame.imposterGetsHint || false);
     const finalDifficulty = difficulty || existingGame.difficulty || 'medium';
     const clientUsedWords = (Array.isArray(usedWords) ? usedWords.filter(w => typeof w === 'string') : []).slice(0, 500);
     
