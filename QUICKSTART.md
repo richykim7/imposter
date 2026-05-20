@@ -41,7 +41,7 @@ Edit **ONE file**: `config.js`
 
 ```javascript
 module.exports = {
-  MODEL_NAME: 'openai/gpt-oss-120b', // ← Change this line only
+  MODEL_NAME: 'llama-3.3-70b-versatile', // ← Change this line only
   // ...
 };
 ```
@@ -87,7 +87,7 @@ Render automatically:
 
 ```bash
 # Required
-GROQ_API_KEY=gsk_your_key_here_123456789
+GROQ_API_KEY=your_groq_api_key_here
 
 # Optional
 PORT=3000
