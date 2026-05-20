@@ -218,14 +218,14 @@ To change the model, edit the `MODEL_NAME` constant:
 ```javascript
 // config.js
 module.exports = {
-  MODEL_NAME: 'openai/gpt-oss-120b', // Change here only
+  MODEL_NAME: 'llama-3.3-70b-versatile', // Change here only
   // ... other config
 };
 ```
 
 Available Groq models:
-- `openai/gpt-oss-120b` (default)
-- `llama-3.3-70b-versatile`
+- `llama-3.3-70b-versatile` (default)
+- `openai/gpt-oss-120b`
 - `mixtral-8x7b-32768`
 - And more at [console.groq.com/docs/models](https://console.groq.com/docs/models)
 
@@ -235,7 +235,7 @@ All game constants are in `config.js`:
 
 ```javascript
 module.exports = {
-  MODEL_NAME: 'openai/gpt-oss-120b',
+  MODEL_NAME: 'llama-3.3-70b-versatile',
   MIN_PLAYERS: 3,
   MAX_PLAYERS: 12,
   DEFAULT_PLAYERS: 3,
@@ -332,8 +332,3 @@ Change the `PORT` in your `.env` file to another number (e.g., 3001).
 ## License
 
 MIT
-
-## Credits
-
-Built for Render deployment with ❤️
-
