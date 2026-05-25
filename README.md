@@ -1,15 +1,17 @@
-# 🎭 Impostor Game
+Old project
+
+# Impostor Game
 
 A minimal but polished web app for an impostor/spyfall-style party game. One player is randomly selected as the impostor who doesn't know the secret word, while all other players are insiders who know it.
 
 ## Features
 
-- 🤖 **AI-Powered Word Generation** - Uses Groq's OpenAI-compatible API to generate creative words from any category
-- 🎲 **Crypto-Secure Randomness** - Impostor selection uses Node's `crypto.randomInt()` for fairness
-- 🔒 **Privacy-First Reveal Flow** - Each player reveals their role privately with auto-hiding screens
-- 📱 **Mobile-First Design** - Clean, modern dark theme that works beautifully on all devices
-- 🚀 **Render-Ready** - Deploy in minutes with zero configuration
-- ⚡ **No Database Required** - In-memory game state keeps things simple
+- **AI-Powered Word Generation** - Uses Groq's OpenAI-compatible API to generate creative words from any category
+- **Crypto-Secure Randomness** - Impostor selection uses Node's `crypto.randomInt()` for fairness
+- **Privacy-First Reveal Flow** - Each player reveals their role privately with auto-hiding screens
+- **Mobile-First Design** - Clean, modern dark theme that works beautifully on all devices
+- **Render-Ready** - Deploy in minutes with zero configuration
+- **No Database Required** - In-memory game state keeps things simple
 
 ## Tech Stack
 
