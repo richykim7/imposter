@@ -119,7 +119,9 @@ A slot's `playerToken` authorizes revealing that slot; otherwise the
 - **Bigger fallback word packs** (12 categories of ~30 items vs. 8 generic).
 - **Round counter** in the game UI.
 - **Rate limiting** on `/api/new-game` (configurable via env).
-- **Offline mode** when `GROQ_API_KEY` is missing — uses local packs.
+- **Multi-provider LLM support** — auto-detects Groq / OpenAI / OpenRouter /
+  Anthropic from the key prefix. Offline mode falls back to local packs when
+  no key is set.
 
 ## License
 
