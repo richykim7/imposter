@@ -1,38 +1,36 @@
 /**
  * Application Configuration
- * Single source of truth for all configurable constants
+ * Single source of truth for all configurable constants.
  */
 
 module.exports = {
-  // GROQ Model Configuration - CHANGE ONLY HERE
+  // GROQ Model Configuration — change here only
   MODEL_NAME: 'llama-3.3-70b-versatile',
-  
-  // Game Configuration
+
+  // Game bounds
   MIN_PLAYERS: 3,
   MAX_PLAYERS: 12,
   DEFAULT_PLAYERS: 3,
-  
-  // Category Validation
+
+  // Category validation
   MIN_CATEGORY_LENGTH: 2,
   MAX_CATEGORY_LENGTH: 60,
-  
-  // API Configuration
+
+  // API
   GROQ_API_URL: 'https://api.groq.com/openai/v1/chat/completions',
   API_TIMEOUT_MS: 10000,
-  
-  // Fallback words (used if API fails after retries)
-  FALLBACK_WORDS: [
-    'Sunflower',
-    'Barcelona',
-    'Telescope',
-    'Orchestra',
-    'Lightning',
-    'Compass',
-    'Mountain',
-    'Rainbow'
-  ],
-  
-  // Reveal Configuration
-  REVEAL_AUTO_HIDE_SECONDS: 10
-};
 
+  // Chaos mode (1 in CHAOS_PROBABILITY_DENOM rounds, when enabled)
+  CHAOS_PROBABILITY_DENOM: 20,
+  CHAOS_DEFAULT_ENABLED: false, // OPT-IN. Used to be a silent surprise; default now off.
+
+  // Reveal UX
+  REVEAL_AUTO_HIDE_SECONDS: 10,
+
+  // Round/word history
+  MAX_PREVIOUS_WORDS: 50,
+
+  // Rate limiting (env-overridable for testing)
+  NEW_GAME_RATE_LIMIT_WINDOW_MS: Number(process.env.NEW_GAME_RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  NEW_GAME_RATE_LIMIT_MAX: Number(process.env.NEW_GAME_RATE_LIMIT_MAX) || 20, // per IP per window
+};

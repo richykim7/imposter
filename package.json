@@ -1,11 +1,13 @@
 {
   "name": "impostor-game",
-  "version": "1.0.0",
-  "description": "A minimal impostor/spyfall-style party game with Groq AI integration",
+  "version": "2.0.0",
+  "description": "An impostor/spyfall-style party game with Groq AI, multi-device support, and offline fallback",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
-    "dev": "node server.js"
+    "dev": "node server.js",
+    "test": "node tests/simulation.js",
+    "test:rng": "node tests/randomizer.js"
   },
   "keywords": [
     "impostor",
@@ -20,6 +22,7 @@
   },
   "dependencies": {
     "dotenv": "^17.2.3",
-    "express": "^4.18.2"
+    "express": "^4.18.2",
+    "express-rate-limit": "^7.4.0"
   }
 }
