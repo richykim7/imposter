@@ -7,7 +7,9 @@ multi-device with each player joining via a code.
 ## Features
 
 - **Pass-and-play OR multi-device** — works either way with the same code
-- **AI-powered words** via Groq, with an offline word-pack fallback if no key
+- **AI-powered words** — drop any Groq / OpenAI / OpenRouter / Anthropic key
+  in `.env` and the server picks the provider from the key prefix. No key →
+  offline word-pack fallback.
 - **Multi-impostor** (1 to floor((n-1)/2))
 - **Difficulty modes** (easy / medium / hard) drive how mainstream the picks are
 - **Everyone-gets-a-word mode** — impostor gets a *different* word
@@ -25,13 +27,25 @@ multi-device with each player joining via a code.
 
 ```bash
 npm install
-cp env.template .env        # optional — add GROQ_API_KEY for AI words
+cp env.template .env        # optional — add an LLM key for AI words
 npm start
 ```
 
-Open <http://localhost:3000>. Without `GROQ_API_KEY` the app runs in offline
-mode using built-in word packs (countries, cities, animals, movies, food,
-sports, fruits, vegetables, professions, colors, instruments, drinks).
+Open <http://localhost:3000>. Drop any one of the following in `.env` (or your
+shell) and the server auto-detects the provider from the key prefix:
+
+| Env var | Provider |
+|---|---|
+| `LLM_API_KEY` | auto-detected from prefix (`gsk_`, `sk-`, `sk-or-`, `sk-ant-`) |
+| `GROQ_API_KEY` | Groq |
+| `OPENAI_API_KEY` | OpenAI |
+| `OPENROUTER_API_KEY` | OpenRouter |
+| `ANTHROPIC_API_KEY` | Anthropic |
+
+Override the default model with `LLM_MODEL=...` if you want a specific one.
+With no key, the app runs in offline mode using built-in word packs
+(countries, cities, animals, movies, food, sports, fruits, vegetables,
+professions, colors, instruments, drinks).
 
 ## Test
 

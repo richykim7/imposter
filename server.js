@@ -14,14 +14,15 @@ const {
   validateNumPlayers,
   validateNumImposters,
   sanitizeWords,
-  parseGroqWords,
+  parseWordList,
   areWordsTooSimilar,
   pickOfflineWord,
 } = require('./lib/gameLogic');
+const llm = require('./lib/llm');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
-const GROQ_API_KEY = process.env.GROQ_API_KEY;
+const LLM_CREDS = llm.resolveCredentials();
 
 app.set('trust proxy', 1); // for express-rate-limit behind a proxy (Render etc)
 app.use(express.json({ limit: '64kb' }));
@@ -78,9 +79,8 @@ function getGameState(code) {
 // Word generation
 // ============================================================
 
-async function generateWordFromGroq(category, previousWords = [], retry = 0, difficulty = 'medium') {
-  // Offline fallback when no key
-  if (!GROQ_API_KEY) {
+async function generateWord(category, previousWords = [], retry = 0, difficulty = 'medium') {
+  if (!LLM_CREDS) {
     return pickOfflineWord(category, previousWords);
   }
 
@@ -113,35 +113,16 @@ ${isProperNoun ? '- Use ACTUAL proper nouns/names, NOT descriptions.' : '- Use c
   const userPrompt = `Category: ${category}\n\nGenerate 10 different words or short phrases (one per line):`;
 
   try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), config.API_TIMEOUT_MS);
-
-    const response = await fetch(config.GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.MODEL_NAME,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 0.9,
-        max_tokens: 200,
-      }),
-      signal: controller.signal,
+    const content = await llm.chat({
+      creds: LLM_CREDS,
+      systemPrompt,
+      userPrompt,
+      temperature: 0.9,
+      maxTokens: 200,
+      timeoutMs: config.API_TIMEOUT_MS,
     });
-    clearTimeout(t);
 
-    if (!response.ok) {
-      throw new Error(`Groq API error: ${response.status}`);
-    }
-    const data = await response.json();
-    const content = data.choices?.[0]?.message?.content?.trim() || '';
-
-    const words = parseGroqWords(content);
+    const words = parseWordList(content);
     if (words.length === 0) throw new Error('No words extracted from API');
 
     let available = words;
@@ -151,46 +132,31 @@ ${isProperNoun ? '- Use ACTUAL proper nouns/names, NOT descriptions.' : '- Use c
     }
     return available[crypto.randomInt(0, available.length)];
   } catch (e) {
-    console.error(`Groq attempt ${retry + 1} failed:`, e.message);
+    console.error(`${LLM_CREDS.provider} attempt ${retry + 1} failed:`, e.message);
     if (retry < 1) {
       await new Promise(r => setTimeout(r, 1000));
-      return generateWordFromGroq(category, previousWords, retry + 1, difficulty);
+      return generateWord(category, previousWords, retry + 1, difficulty);
     }
     console.warn('Falling back to offline word pack');
     return pickOfflineWord(category, previousWords);
   }
 }
 
-async function generateHintFromGroq(word, category, retry = 0) {
-  if (!GROQ_API_KEY) return null; // hints are optional
+async function generateHint(word, category, retry = 0) {
+  if (!LLM_CREDS) return null; // hints are optional
 
   const systemPrompt = `You are a hint generator for a party game. Output a VERY SHORT, ABSTRACT 1-2 word hint that could apply to MANY items in the category. NO quotes, NO punctuation. NO explanations.`;
   const userPrompt = `Word: ${word}\nCategory: ${category}\n\nGenerate a vague 1-2 word hint:`;
 
   try {
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), config.API_TIMEOUT_MS);
-    const response = await fetch(config.GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${GROQ_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: config.MODEL_NAME,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
-        temperature: 1.2,
-        max_tokens: 10,
-      }),
-      signal: controller.signal,
+    let hint = await llm.chat({
+      creds: LLM_CREDS,
+      systemPrompt,
+      userPrompt,
+      temperature: 1.2,
+      maxTokens: 10,
+      timeoutMs: config.API_TIMEOUT_MS,
     });
-    clearTimeout(t);
-    if (!response.ok) throw new Error(`Groq error ${response.status}`);
-    const data = await response.json();
-    let hint = data.choices?.[0]?.message?.content?.trim() || '';
     hint = hint.replace(/^["']|["']$/g, '').replace(/[.!?,;:]+$/, '').trim();
     const parts = hint.split(/\s+/).filter(w => w.length > 0);
     if (parts.length > 2) hint = parts.slice(0, 2).join(' ');
@@ -198,7 +164,7 @@ async function generateHintFromGroq(word, category, retry = 0) {
   } catch (e) {
     if (retry < 1) {
       await new Promise(r => setTimeout(r, 1000));
-      return generateHintFromGroq(word, category, retry + 1);
+      return generateHint(word, category, retry + 1);
     }
     return null;
   }
@@ -234,29 +200,29 @@ async function createGameState({
   if (chaosMode) {
     impostorIndices = Array.from({ length: numPlayers }, (_, i) => i);
   } else {
-    word = await generateWordFromGroq(trimmed, combined, 0, difficulty);
+    word = await generateWord(trimmed, combined, 0, difficulty);
     impostorIndices = selectImpostorIndices(numPlayers, numImposters);
 
     const roundWords = [word];
 
     if (everyoneGetsWord) {
-      impostorWord = await generateWordFromGroq(trimmed, [...combined, ...roundWords], 0, difficulty);
+      impostorWord = await generateWord(trimmed, [...combined, ...roundWords], 0, difficulty);
       let attempts = 0;
       while (
         (impostorWord === word || areWordsTooSimilar(impostorWord, word)) &&
         attempts < 5
       ) {
-        impostorWord = await generateWordFromGroq(trimmed, [...combined, ...roundWords], 0, difficulty);
+        impostorWord = await generateWord(trimmed, [...combined, ...roundWords], 0, difficulty);
         attempts++;
       }
       if (!impostorWord) throw new Error('Failed to generate impostor word');
       roundWords.push(impostorWord);
 
       if (imposterGetsHint) {
-        impostorHint = await generateHintFromGroq(impostorWord, trimmed);
+        impostorHint = await generateHint(impostorWord, trimmed);
       }
     } else if (imposterGetsHint) {
-      impostorHint = await generateHintFromGroq(word, trimmed);
+      impostorHint = await generateHint(word, trimmed);
     }
 
     combined = [...combined, ...roundWords];
@@ -638,7 +604,7 @@ app.get('/api/config', (req, res) => {
     revealAutoHideSeconds: config.REVEAL_AUTO_HIDE_SECONDS,
     chaosDefaultEnabled: config.CHAOS_DEFAULT_ENABLED,
     chaosProbabilityDenom: config.CHAOS_PROBABILITY_DENOM,
-    offlineMode: !GROQ_API_KEY,
+    offlineMode: !LLM_CREDS,
   });
 });
 
@@ -650,9 +616,12 @@ app.get('/', (req, res) => {
 // Start
 if (require.main === module) {
   app.listen(PORT, () => {
-    console.log(`🎭 Impostor game server running on port ${PORT}`);
-    console.log(`🔑 Groq API key: ${GROQ_API_KEY ? 'configured' : 'NOT SET — using offline word packs'}`);
-    console.log(`🤖 Model: ${config.MODEL_NAME}`);
+    console.log(`Impostor game server running on port ${PORT}`);
+    if (LLM_CREDS) {
+      console.log(`LLM: ${LLM_CREDS.provider} (${LLM_CREDS.model})`);
+    } else {
+      console.log('LLM: no API key set — using offline word packs');
+    }
   });
 }
 

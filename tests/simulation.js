@@ -1,7 +1,7 @@
 /**
  * Integration simulator — exercises every play pattern against the real server.
  *
- * Runs server in-process on a random port (no GROQ_API_KEY needed; offline
+ * Runs server in-process on a random port (no LLM API key needed; offline
  * word packs are used). Verifies bug fixes do not regress, and that every
  * scenario the user might hit works correctly.
  *

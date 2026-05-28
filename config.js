@@ -4,9 +4,6 @@
  */
 
 module.exports = {
-  // GROQ Model Configuration — change here only
-  MODEL_NAME: 'llama-3.3-70b-versatile',
-
   // Game bounds
   MIN_PLAYERS: 3,
   MAX_PLAYERS: 12,
@@ -16,8 +13,7 @@ module.exports = {
   MIN_CATEGORY_LENGTH: 2,
   MAX_CATEGORY_LENGTH: 60,
 
-  // API
-  GROQ_API_URL: 'https://api.groq.com/openai/v1/chat/completions',
+  // LLM call timeout (URL + model live in lib/llm.js per provider)
   API_TIMEOUT_MS: 10000,
 
   // Chaos mode (1 in CHAOS_PROBABILITY_DENOM rounds, when enabled)
