@@ -33,3 +33,4 @@ build/
 
 # Optional eslint cache
 .eslintcache
+tests/shots/
