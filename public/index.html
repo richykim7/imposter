@@ -2,16 +2,23 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Impostor Game</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0c3023">
+  <title>Impostor</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,700;1,400;1,700&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>🎭 Impostor Game</h1>
-      <p class="subtitle">A party game of deception and deduction</p>
-    </header>
+  <canvas id="confettiCanvas" aria-hidden="true"></canvas>
+  <div class="felt">
+    <div class="container">
+      <header class="title-card">
+        <span class="title-mark" aria-hidden="true">♣ ♥ ♠ ♦</span>
+        <h1>Impostor</h1>
+        <p class="subtitle">A party game of deception &amp; deduction</p>
+      </header>
 
     <div class="info-note">
       <small>Each game gets a unique code. Share it so friends can join on their phones!</small>
@@ -113,12 +120,12 @@
         </div>
       </div>
 
-      <button id="createGameBtn" class="btn btn-primary mt-lg">Create Game</button>
+      <button id="createGameBtn" class="btn btn-primary mt-lg">Deal the round</button>
     </section>
 
     <!-- Join Game Section -->
     <section id="joinSection" class="card hidden">
-      <h2>Join Game</h2>
+      <h2>Sit at a table</h2>
 
       <div class="form-group">
         <label for="gameCodeInput">Game Code</label>
@@ -133,28 +140,28 @@
         <small class="hint">Enter the game code from the host</small>
       </div>
 
-      <button id="joinGameBtn" class="btn btn-primary">Join Game</button>
+      <button id="joinGameBtn" class="btn btn-primary">Sit down</button>
 
       <div class="join-back-row">
         <button id="backToSetupBtn" class="btn btn-secondary w-auto">
-          ← Create New Game Instead
+          ← Deal a new round instead
         </button>
       </div>
     </section>
 
     <!-- Player Selection Section (shown after joining) -->
     <section id="playerSelectionSection" class="card hidden">
-      <h2>Select Your Player Number</h2>
+      <h2>Take a seat</h2>
       <div id="playerSelectionInfo" class="game-info mb-lg"></div>
       <div id="playerSelectionButtons" class="player-selection-row"></div>
       <button id="confirmPlayerBtn" class="btn btn-primary mt-md hidden">
-        Confirm Player Number
+        Take this seat
       </button>
     </section>
 
     <!-- New Round Setup (shown when host starts new round) -->
     <section id="newRoundSection" class="card hidden">
-      <h2>New Round</h2>
+      <h2>Reshuffle</h2>
 
       <div id="newRoundCodeDisplay" class="game-code-display">
         <div class="game-code-label">Game Code</div>
@@ -163,13 +170,13 @@
       </div>
 
       <button id="sameCategoryBtn" class="btn btn-primary mb-md">
-        Same Category (<span id="sameCategoryName"></span>)
+        Same theme · <span id="sameCategoryName"></span>
       </button>
 
-      <div class="divider-text">or pick a new category</div>
+      <div class="divider-text">or pick a new theme</div>
 
       <div class="form-group">
-        <label for="newRoundCategoryInput">Category for Next Round</label>
+        <label for="newRoundCategoryInput">Category for next round</label>
         <input
           type="text"
           id="newRoundCategoryInput"
@@ -189,15 +196,15 @@
         <small class="hint" id="newRoundDifficultyHint">A balanced mix of common and moderately known items</small>
       </div>
 
-      <button id="startNewRoundBtn" class="btn btn-primary">Start with New Category</button>
+      <button id="startNewRoundBtn" class="btn btn-primary">Deal with a new theme</button>
     </section>
 
     <!-- Game Section -->
     <section id="gameSection" class="card hidden">
       <div class="game-header">
-        <h2>Active Game</h2>
+        <h2>At the table</h2>
         <div class="game-header-buttons">
-          <button id="revealAllBtn" class="btn btn-warning btn-sm">Reveal All</button>
+          <button id="revealAllBtn" class="btn btn-warning btn-sm">Show the hand</button>
           <button id="resetBtn" class="btn btn-secondary btn-sm">Reset</button>
         </div>
       </div>
@@ -228,47 +235,63 @@
       </div>
 
       <div class="players-section">
-        <h3>Reveal Players</h3>
+        <h3>Flip a card</h3>
         <div id="playersList" class="players-list"></div>
       </div>
     </section>
 
-    <footer>
-      <p>Powered by Groq AI • Built for Render</p>
-    </footer>
+      <footer>
+        <p>An after-dinner game · No phone left face-up</p>
+      </footer>
+    </div>
   </div>
 
-  <!-- Reveal Modal -->
+  <!-- Reveal Modal — card flip is the hero moment -->
   <div id="revealModal" class="modal hidden">
-    <div class="modal-content">
-      <div class="modal-header">
-        <h2 id="modalPlayerTitle"></h2>
+    <div class="modal-content modal-content--card">
+      <div class="flip-card" id="flipCard" data-revealed="false">
+        <div class="flip-card__inner">
+          <!-- BACK of the card (face-down) -->
+          <div class="flip-card__face flip-card__face--back" aria-hidden="true">
+            <div class="card-back-art">
+              <div class="card-back-border"></div>
+              <div class="card-back-monogram">♣ ♥ ♠ ♦</div>
+              <div class="card-back-corner card-back-corner--tl">Impostor</div>
+              <div class="card-back-corner card-back-corner--br">Impostor</div>
+            </div>
+          </div>
+          <!-- FRONT of the card (revealed) -->
+          <div class="flip-card__face flip-card__face--front">
+            <div class="card-front" id="cardFront">
+              <span class="card-corner card-corner--tl" id="cardCornerTL"></span>
+              <h2 class="card-player" id="modalPlayerTitle"></h2>
+              <div id="modalRole" class="role-display"></div>
+              <div id="modalWord" class="word-display"></div>
+              <span class="card-corner card-corner--br" id="cardCornerBR"></span>
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="modal-body">
-        <div id="modalRole" class="role-display"></div>
-        <div id="modalWord" class="word-display"></div>
+      <div class="modal-foot-row">
         <div id="modalCountdown" class="countdown"></div>
-      </div>
-      <div class="modal-footer">
-        <button id="hideModalBtn" class="btn btn-primary">Hide Now</button>
+        <button id="hideModalBtn" class="btn btn-secondary btn-sm">Hide</button>
       </div>
     </div>
   </div>
 
-  <!-- Reveal All Modal -->
+  <!-- Reveal All Modal — fan of revealed cards -->
   <div id="revealAllModal" class="modal hidden">
     <div class="modal-content reveal-all-modal">
-      <h2>🎭 Game Results</h2>
+      <h2 class="reveal-all-title">The hand revealed</h2>
       <div id="revealAllContent" class="reveal-all-content"></div>
       <div id="revealAllHostButtons" class="mt-lg">
-        <button id="startNewGameFromModalBtn" class="btn btn-primary">
-          Start New Round
-        </button>
+        <button id="startNewGameFromModalBtn" class="btn btn-primary">Deal a new round</button>
       </div>
       <button id="closeRevealAllModalBtn" class="btn btn-secondary mt-sm">Close</button>
     </div>
   </div>
 
+  <script src="vendor/confetti.browser.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -76,9 +76,12 @@ const dom = {
 
   revealModal: {
     root: $('revealModal'),
+    flipCard: $('flipCard'),
     title: $('modalPlayerTitle'),
     role: $('modalRole'),
     word: $('modalWord'),
+    cornerTL: $('cardCornerTL'),
+    cornerBR: $('cardCornerBR'),
     countdown: $('modalCountdown'),
     hideBtn: $('hideModalBtn'),
   },
@@ -271,8 +274,8 @@ function renderJoinedPlayerView() {
   btn.className = 'btn btn-reveal';
   btn.id = 'myRevealBtn';
   btn.textContent = revealedPlayerIndices.has(myPlayerNumber - 1)
-    ? 'Show My Role Again'
-    : 'Reveal My Role';
+    ? 'flip again'
+    : 'flip my card';
   btn.onclick = () => revealPlayer(myPlayerNumber - 1);
 
   row.appendChild(label);
@@ -305,10 +308,10 @@ function renderHostPlayersList() {
     btn.dataset.playerIndex = i;
     const wasRevealed = revealedPlayerIndices.has(i);
     if (wasRevealed) {
-      btn.textContent = 'Show again';
+      btn.textContent = 'show again';
       btn.classList.add('revealed');
     } else {
-      btn.textContent = 'Reveal';
+      btn.textContent = 'flip';
     }
     btn.onclick = () => revealPlayer(i);
 
@@ -615,13 +618,39 @@ async function revealPlayer(playerIndex) {
   }
 }
 
+function setSuit(node, role) {
+  // ♥ = impostor (red), ♠ = insider (black), blank = hidden role
+  if (!node) return;
+  if (role === 'IMPOSTOR' || role === 'Impostor') {
+    node.innerHTML = '<span class="suit">♥</span>';
+    node.className = node.className.replace(/\s*(impostor|insider)/g, '') + ' impostor';
+  } else if (role === 'INSIDER' || role === 'Insider') {
+    node.innerHTML = '<span class="suit">♠</span>';
+    node.className = node.className.replace(/\s*(impostor|insider)/g, '') + ' insider';
+  } else {
+    node.innerHTML = '';
+    node.className = node.className.replace(/\s*(impostor|insider)/g, '');
+  }
+}
+
 function showRevealModal(data) {
   if (countdownInterval) {
     clearInterval(countdownInterval);
     countdownInterval = null;
   }
 
+  // Always reset the card to "face-down" before showing — even if this is a
+  // re-reveal in the same session. The two-rAF dance below guarantees the
+  // browser commits the back-facing state before we trigger the flip.
+  if (dom.revealModal.flipCard) {
+    dom.revealModal.flipCard.setAttribute('data-revealed', 'false');
+  }
+
   dom.revealModal.title.textContent = `Player ${data.playerIndex + 1}`;
+
+  // Suit corners + role label
+  setSuit(dom.revealModal.cornerTL, data.role);
+  setSuit(dom.revealModal.cornerBR, data.role);
   if (data.role) {
     dom.revealModal.role.textContent = data.role;
     dom.revealModal.role.className = `role-display ${data.role.toLowerCase()}`;
@@ -634,13 +663,13 @@ function showRevealModal(data) {
 
   if (data.word) {
     dom.revealModal.word.innerHTML = `
-      <div class="word-label">Your word is:</div>
+      <div class="word-label">Your word</div>
       <div class="word-text">${escapeHtml(data.word)}</div>
     `;
     dom.revealModal.word.className = 'word-display has-word';
   } else {
     dom.revealModal.word.innerHTML =
-      '<span class="no-word-text">You do not get a word.<br>Try to blend in!</span>';
+      '<span class="no-word-text">You do not get a word.<br>Try to blend in.</span>';
     dom.revealModal.word.className = 'word-display no-word';
   }
 
@@ -650,7 +679,7 @@ function showRevealModal(data) {
     const hintDiv = document.createElement('div');
     hintDiv.className = 'hint-display';
     hintDiv.innerHTML = `
-      <div class="hint-label">Hint:</div>
+      <div class="hint-label">Hint</div>
       <div class="hint-text">${escapeHtml(data.hint)}</div>
     `;
     dom.revealModal.word.after(hintDiv);
@@ -661,11 +690,25 @@ function showRevealModal(data) {
   dom.revealModal.root.classList.remove('hidden');
   dom.revealModal.root.classList.add('show');
 
+  // Two requestAnimationFrames — guarantees the "back-facing" state is
+  // committed before we flip, so the transition fires reliably even on
+  // a re-tap that immediately re-opens the modal.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        if (dom.revealModal.flipCard) {
+          dom.revealModal.flipCard.setAttribute('data-revealed', 'true');
+        }
+      }, 600);
+    });
+  });
+
+  // Countdown to auto-hide — generous enough that the 900ms flip completes first
   let countdown = appConfig?.revealAutoHideSeconds || 10;
-  dom.revealModal.countdown.textContent = `Auto-hiding in ${countdown}s`;
+  dom.revealModal.countdown.textContent = `${countdown}s`;
   countdownInterval = setInterval(() => {
     countdown--;
-    if (countdown > 0) dom.revealModal.countdown.textContent = `Auto-hiding in ${countdown}s`;
+    if (countdown > 0) dom.revealModal.countdown.textContent = `${countdown}s`;
     else hideRevealModal();
   }, 1000);
 }
@@ -677,6 +720,10 @@ function hideRevealModal() {
   }
   const existingHint = document.querySelector('.hint-display');
   if (existingHint) existingHint.remove();
+  // Reset the flip state so the next reveal starts face-down.
+  if (dom.revealModal.flipCard) {
+    dom.revealModal.flipCard.setAttribute('data-revealed', 'false');
+  }
   dom.revealModal.root.classList.remove('show');
   dom.revealModal.root.classList.add('hidden');
 }
@@ -773,11 +820,36 @@ function displayRevealAllModal(data) {
   }
   dom.revealAllModal.root.classList.remove('hidden');
   dom.revealAllModal.root.classList.add('show');
+
+  // 🎉 Celebrate the deal — single 1-shot burst from the center.
+  fireConfetti();
+}
+
+function fireConfetti() {
+  if (typeof window.confetti !== 'function') return;
+  // Honor reduced-motion users.
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const colors = ['#c8a04a', '#d9b76b', '#f4ecdc', '#a03030', '#0c3023'];
+  // Fire from two slightly offset origins for a wider fan.
+  setTimeout(() => {
+    window.confetti({
+      particleCount: 80, spread: 70, origin: { x: 0.3, y: 0.4 },
+      colors, scalar: 0.9, ticks: 200, gravity: 1,
+    });
+    window.confetti({
+      particleCount: 80, spread: 70, origin: { x: 0.7, y: 0.4 },
+      colors, scalar: 0.9, ticks: 200, gravity: 1,
+    });
+  }, 250);
 }
 
 function closeRevealAllModal() {
   dom.revealAllModal.root.classList.remove('show');
   dom.revealAllModal.root.classList.add('hidden');
+  // Clear any in-flight confetti so it doesn't bleed into the next screen.
+  if (window.confetti && typeof window.confetti.reset === 'function') {
+    try { window.confetti.reset(); } catch {}
+  }
 }
 
 // ============================================================
