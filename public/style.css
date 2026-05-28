@@ -67,10 +67,10 @@
   --t-base:         220ms var(--ease);
   --t-flip:         900ms var(--ease-card);
 
-  /* Type */
-  --font-display:   'EB Garamond', 'Iowan Old Style', 'Palatino Linotype', Georgia, serif;
-  --font-body:      'EB Garamond', Georgia, 'Times New Roman', serif;
-  --font-mono:      'Space Mono', ui-monospace, Menlo, Consolas, monospace;
+  /* Type — one face throughout, system-installed, no copyright concern */
+  --font-display:   'Times New Roman', Times, Georgia, serif;
+  --font-body:      'Times New Roman', Times, Georgia, serif;
+  --font-mono:      'Times New Roman', Times, Georgia, serif;
 
   /* Legacy aliases used by helpers / older selectors */
   --bg-page:        var(--felt);
@@ -187,8 +187,8 @@ body {
 }
 .title-mark {
   display: block;
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
   letter-spacing: 0.6em;
   color: var(--gold);
   margin-bottom: 0.5rem;
@@ -264,19 +264,18 @@ footer {
 .card > * { position: relative; z-index: 1; }
 
 .card h2 {
-  font-family: var(--font-display);
-  font-style: italic;
+  font-family: var(--font-body);
   font-weight: 700;
-  font-size: 1.85rem;
+  font-size: 1.7rem;
   line-height: 1.1;
-  margin-bottom: 1.5rem;
+  margin-bottom: 1.25rem;
   color: var(--ink);
+  letter-spacing: -0.005em;
 }
 .card h3 {
-  font-family: var(--font-display);
-  font-style: italic;
+  font-family: var(--font-body);
   font-weight: 700;
-  font-size: 1.2rem;
+  font-size: 1.15rem;
   margin-bottom: 1rem;
   color: var(--ink);
 }
@@ -286,10 +285,9 @@ footer {
  * ----------------------------------------------------------- */
 
 .status-line {
-  padding: 0.75rem 1rem;
+  padding: 0.7rem 1rem;
   border-radius: var(--r-md);
   margin: 0 0 1rem;
-  font-style: italic;
   font-size: 0.95rem;
   text-align: center;
   color: var(--ivory-fg);
@@ -304,20 +302,22 @@ footer {
 
 .info-note {
   text-align: center;
-  color: var(--ivory-shadow);
-  font-style: italic;
-  font-size: 0.875rem;
+  color: var(--ivory-fg);
+  font-size: 0.95rem;
+  line-height: 1.45;
   margin: 0 auto 1.25rem;
-  padding: 0.6rem 1rem;
-  background: rgba(0, 0, 0, 0.25);
-  border-left: 2px solid var(--gold);
-  border-right: 2px solid var(--gold);
-  border-radius: 2px;
+  padding: 0.75rem 1rem;
+  background: rgba(244, 236, 220, 0.06);
+  border: 1px solid rgba(244, 236, 220, 0.20);
+  border-radius: var(--r-md);
+}
+.info-note small {
+  font-size: inherit;
 }
 .info-note.is-danger {
-  border-color: var(--impostor);
-  color: var(--impostor-soft);
-  background: rgba(160, 48, 48, 0.10);
+  color: #f0c0c0;
+  background: rgba(160, 48, 48, 0.18);
+  border-color: rgba(200, 80, 80, 0.45);
 }
 
 /* -------------------------------------------------------------
@@ -328,49 +328,44 @@ footer {
 .form-group > label {
   display: block;
   margin-bottom: 0.4rem;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.05rem;
-  color: var(--ink-soft);
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 1rem;
+  color: var(--ink);
   letter-spacing: 0.01em;
 }
 .form-group input[type="text"],
 .form-group input[type="number"] {
   width: 100%;
-  padding: 0.6rem 0.5rem 0.4rem;
-  background: transparent;
+  padding: 0.65rem 0.6rem 0.5rem;
+  background: rgba(255, 255, 255, 0.40);
   color: var(--ink);
-  border: 0;
-  border-bottom: 1.5px dashed var(--ink-muted);
-  border-radius: 0;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.2rem;
+  border: 1.5px solid var(--ink-muted);
+  border-radius: var(--r-sm);
+  font-family: var(--font-body);
+  font-size: 1.1rem;
   transition: var(--t-base);
 }
 .form-group input:focus {
   outline: none;
-  border-bottom-color: var(--gold-dark);
-  border-bottom-style: solid;
-  background: rgba(200, 160, 74, 0.06);
+  border-color: var(--gold-dark);
+  background: rgba(255, 255, 255, 0.65);
 }
 .form-group input::placeholder {
   color: var(--ink-muted);
-  opacity: 0.5;
+  opacity: 0.6;
 }
 .form-group .hint {
   display: block;
   margin-top: 0.4rem;
-  color: var(--ink-muted);
-  font-style: italic;
-  font-size: 0.85rem;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
 }
 
 .input-code {
   text-align: center;
   letter-spacing: 0.4em !important;
-  font-family: var(--font-mono) !important;
-  font-style: normal !important;
+  font-family: var(--font-body) !important;
   font-weight: 700;
   font-size: 1.4rem !important;
   text-transform: uppercase;
@@ -386,10 +381,9 @@ footer {
   --btn-border: var(--ink);
 
   display: inline-block;
-  padding: 0.8rem 1.5rem;
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.05rem;
+  padding: 0.75rem 1.5rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
   font-weight: 700;
   letter-spacing: 0.02em;
   text-align: center;
@@ -437,26 +431,14 @@ footer {
 
 .btn-sm { padding: 0.45rem 0.95rem; font-size: 0.85rem; }
 
-/* In-list "Flip" button on each player row */
+/* (deprecated) In-list reveal button — replaced by .mini-card; kept for
+   any third-party styling that might still reference it. */
 .btn-reveal {
   --btn-bg:     var(--ink);
   --btn-fg:     var(--gold-light);
   --btn-border: var(--gold-dark);
   padding: 0.5rem 1rem;
   font-size: 0.95rem;
-  text-transform: lowercase;
-  letter-spacing: 0.04em;
-  font-style: italic;
-}
-.btn-reveal:hover:not(:disabled) {
-  --btn-bg: var(--leather-soft);
-  box-shadow: 0 0 0 1px var(--gold-light), 0 4px 10px rgba(0, 0, 0, 0.4);
-}
-.btn-reveal.revealed {
-  --btn-bg: transparent;
-  --btn-fg: var(--ink-muted);
-  --btn-border: var(--ink-muted);
-  font-style: italic;
 }
 
 /* -------------------------------------------------------------
@@ -476,14 +458,13 @@ footer {
 .difficulty-btn {
   flex: 1;
   min-width: 60px;
-  padding: 0.7rem 0.75rem;
+  padding: 0.65rem 0.75rem;
   background: transparent;
   border: 1.5px solid var(--ink-soft);
   border-radius: var(--r-md);
   color: var(--ink);
-  font-family: var(--font-display);
-  font-style: italic;
-  font-size: 1.05rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
   font-weight: 700;
   cursor: pointer;
   transition: var(--t-fast);
@@ -542,7 +523,7 @@ footer {
   height: 56px;
 }
 .stepper-btn {
-  font: 700 1.5rem/1 var(--font-mono);
+  font: 700 1.5rem/1 var(--font-body);
   background: transparent;
   color: var(--ink-soft);
   border: 0;
@@ -557,7 +538,7 @@ footer {
 .stepper-btn:disabled               { opacity: 0.30; cursor: not-allowed; }
 
 .stepper-value {
-  font: 700 1.6rem/1 var(--font-mono);
+  font: 700 1.6rem/1 var(--font-body);
   text-align: center;
   background: transparent;
   color: var(--ink);
@@ -620,6 +601,7 @@ footer {
   flex: 1;
   font-family: var(--font-body);
   font-size: 1rem;
+  line-height: 1.4;
   color: var(--ink);
 }
 .toggle-input:disabled ~ .toggle-text { color: var(--ink-muted); opacity: 0.6; }
@@ -651,10 +633,9 @@ footer {
   padding: 0.5rem 0;
 }
 .settings-header h3 {
-  font-family: var(--font-display);
-  font-style: italic;
+  font-family: var(--font-body);
   font-weight: 700;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   margin: 0;
   color: var(--ink);
 }
@@ -702,15 +683,16 @@ footer {
   box-shadow: inset 0 0 0 1px rgba(244, 236, 220, 0.05);
 }
 .game-code-label {
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.75rem;
   letter-spacing: 0.35em;
   color: var(--gold-light);
   text-transform: uppercase;
   margin-bottom: 0.5rem;
 }
 .game-code-value {
-  font: 700 2.6rem/1 var(--font-mono);
+  font: 700 2.6rem/1 var(--font-body);
   letter-spacing: 0.22em;
   color: var(--gold-light);
   text-shadow: 0 0 12px var(--gold-glow);
@@ -718,11 +700,9 @@ footer {
 }
 .game-code-hint {
   display: block;
-  font-family: var(--font-display);
-  font-style: italic;
+  font-family: var(--font-body);
   color: var(--ivory-shadow);
-  font-size: 0.85rem;
-  opacity: 0.7;
+  font-size: 0.875rem;
 }
 
 .share-link-row {
@@ -738,8 +718,8 @@ footer {
   color: var(--ivory-shadow);
   border: 1px solid var(--gold-dark);
   border-radius: var(--r-sm);
-  font-family: var(--font-mono);
-  font-size: 0.8rem;
+  font-family: var(--font-body);
+  font-size: 0.85rem;
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -766,14 +746,13 @@ footer {
 }
 .info-item:not(:last-child) { border-bottom: 1px dashed var(--rule); }
 .info-item strong {
-  font-family: var(--font-display);
-  font-style: italic;
+  font-family: var(--font-body);
   font-weight: 400;
   color: var(--ink-soft);
 }
 .info-item span {
-  font-family: var(--font-mono);
-  font-size: 0.95rem;
+  font-family: var(--font-body);
+  font-size: 1rem;
   font-weight: 700;
   color: var(--ink);
 }
@@ -788,44 +767,127 @@ footer {
 .game-header h2          { margin: 0; }
 .game-header-buttons     { display: flex; gap: 0.5rem; }
 
-/* Players list — each row is a small ivory "deal slip" */
+/* Players list — a row of mini playing cards (no labels-plus-button). */
 .players-section { margin-top: 1.25rem; }
 .players-list {
   display: flex;
-  flex-direction: column;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 0.7rem;
+  margin-top: 0.75rem;
 }
-.player-item {
+
+.mini-card {
   position: relative;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0.9rem 1.1rem;
+  flex: 0 0 auto;
+  width: 72px;
+  aspect-ratio: 5 / 7;
   background: var(--ivory);
   border: 1.5px solid var(--gold-dark);
-  border-radius: var(--r-md);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  padding: 0;
+  cursor: pointer;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28);
+  font-family: var(--font-body);
+  color: var(--ink);
   transition: transform var(--t-fast), box-shadow var(--t-fast);
+  display: grid;
+  place-items: center;
 }
-.player-item::before {
+.mini-card::before {
   content: '';
   position: absolute;
-  inset: 3px;
-  border: 1px solid rgba(200, 160, 74, 0.40);
-  border-radius: calc(var(--r-md) - 2px);
+  inset: 4px;
+  border: 1px solid rgba(200, 160, 74, 0.45);
+  border-radius: 5px;
   pointer-events: none;
 }
-.player-item:hover {
-  transform: translateY(-2px) rotate(-0.4deg);
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.35);
+.mini-card:hover:not(:disabled) {
+  transform: translateY(-3px) rotate(-1.2deg);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
 }
-.player-item--centered { justify-content: center; gap: 1rem; }
-.player-label {
-  font-family: var(--font-display);
+.mini-card:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+.mini-card__number {
   font-style: italic;
   font-weight: 700;
-  font-size: 1.1rem;
+  font-size: 1.85rem;
   color: var(--ink);
+  line-height: 1;
+}
+.mini-card__corner {
+  position: absolute;
+  font-weight: 700;
+  font-size: 0.7rem;
+  color: var(--ink);
+}
+.mini-card__corner--tl { top: 5px;    left: 7px; }
+.mini-card__corner--br { bottom: 5px; right: 7px; transform: rotate(180deg); }
+.mini-card__suit {
+  position: absolute;
+  bottom: 5px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 0.55rem;
+  letter-spacing: 0.32em;
+  color: var(--gold);
+  pointer-events: none;
+}
+
+/* Host's own slot: gold rim + ★ */
+.mini-card.is-host {
+  border-color: var(--gold);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.30), 0 0 12px var(--gold-glow);
+}
+.mini-card.is-host > .mini-card__corner--tl::before {
+  content: '★ ';
+  color: var(--gold-dark);
+  margin-right: 1px;
+}
+
+/* Player slot claimed (joined) */
+.mini-card.joined > .mini-card__corner--tl::after {
+  content: ' ✓';
+  color: var(--gold-dark);
+  margin-left: 2px;
+}
+
+/* Already flipped this round */
+.mini-card.revealed {
+  opacity: 0.55;
+  background: var(--ivory-deep);
+}
+
+/* Solo view (joined player only sees their own card — make it big) */
+.players-list.solo {
+  justify-content: center;
+  padding: 1rem 0 1.5rem;
+}
+.players-list.solo .mini-card {
+  width: 180px;
+  border-width: 2px;
+}
+.players-list.solo .mini-card__number {
+  font-size: 4.5rem;
+}
+.players-list.solo .mini-card__corner {
+  font-size: 1.05rem;
+  top: 12px;
+  left: 14px;
+}
+.players-list.solo .mini-card__corner--br {
+  top: auto;
+  left: auto;
+  bottom: 12px;
+  right: 14px;
+}
+.players-list.solo .mini-card__suit {
+  font-size: 0.7rem;
+  letter-spacing: 0.45em;
+  bottom: 10px;
 }
 
 /* Divider "or" rule */
@@ -834,7 +896,7 @@ footer {
   align-items: center;
   gap: 1rem;
   margin: 0.75rem 0 1.25rem;
-  font-family: var(--font-display);
+  font-family: var(--font-body);
   font-style: italic;
   font-size: 0.95rem;
   color: var(--ink-soft);
@@ -951,7 +1013,7 @@ footer {
   inset: 0;
   display: grid;
   place-items: center;
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-size: 1.4rem;
   letter-spacing: 0.5em;
   color: var(--gold);
@@ -959,8 +1021,7 @@ footer {
 }
 .card-back-corner {
   position: absolute;
-  font-family: var(--font-display);
-  font-style: italic;
+  font-family: var(--font-body);
   font-weight: 700;
   font-size: 0.7rem;
   letter-spacing: 0.2em;
@@ -1019,7 +1080,7 @@ footer {
   flex-direction: column;
   align-items: center;
   gap: 0.1rem;
-  font: 700 1.7rem/1 var(--font-mono);
+  font: 700 1.7rem/1 var(--font-body);
 }
 .card-corner--tl { top: 16px; left: 18px; }
 .card-corner--br { bottom: 16px; right: 18px; transform: rotate(180deg); }
@@ -1084,8 +1145,9 @@ footer {
   text-align: center;
 }
 .hint-display .hint-label {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.7rem;
   letter-spacing: 0.3em;
   color: var(--gold-dark);
   text-transform: uppercase;
@@ -1121,11 +1183,12 @@ footer {
   --btn-border: rgba(244, 236, 220, 0.55);
 }
 .countdown {
-  font-family: var(--font-mono);
-  font-size: 0.85rem;
-  letter-spacing: 0.1em;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.08em;
   color: var(--ivory-shadow);
-  opacity: 0.8;
+  opacity: 0.85;
 }
 
 /* -------------------------------------------------------------
@@ -1180,11 +1243,11 @@ footer {
   margin-bottom: 0.75rem;
 }
 .reveal-all-category strong {
-  font-family: var(--font-mono);
+  font-family: var(--font-body);
   font-style: normal;
   font-weight: 700;
-  letter-spacing: 0.15em;
-  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  font-size: 0.75rem;
   text-transform: uppercase;
   color: var(--ink-soft);
   margin-right: 0.5rem;
@@ -1243,10 +1306,10 @@ footer {
   color: var(--ink);
 }
 .reveal-all-role {
-  padding: 0.15rem 0.6rem;
+  padding: 0.18rem 0.6rem;
   border-radius: var(--r-sm);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-family: var(--font-body);
+  font-size: 0.75rem;
   letter-spacing: 0.2em;
   text-transform: uppercase;
   font-weight: 700;

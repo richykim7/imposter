@@ -258,66 +258,50 @@ function showGameSection() {
 function renderPlayersList() {
   if (!dom.game.list || !currentGame) return;
   dom.game.list.innerHTML = '';
+  dom.game.list.classList.remove('solo');
   if (!isHost && myPlayerNumber) renderJoinedPlayerView();
   else renderHostPlayersList();
 }
 
+function makeMiniCard(playerNum, { host = false, joined = false, revealed = false } = {}) {
+  const card = document.createElement('button');
+  card.type = 'button';
+  card.className = 'mini-card';
+  card.dataset.playerIndex = playerNum - 1;
+  card.setAttribute('aria-label',
+    `Player ${playerNum}${host ? ' (host)' : ''}${revealed ? ' — already flipped' : ''}`);
+  if (host)     card.classList.add('is-host');
+  if (joined)   card.classList.add('joined');
+  if (revealed) card.classList.add('revealed');
+  card.innerHTML = `
+    <span class="mini-card__corner mini-card__corner--tl">${playerNum}</span>
+    <span class="mini-card__number">${playerNum}</span>
+    <span class="mini-card__suit">♣ ♥ ♠ ♦</span>
+    <span class="mini-card__corner mini-card__corner--br">${playerNum}</span>
+  `;
+  card.onclick = () => revealPlayer(playerNum - 1);
+  return card;
+}
+
 function renderJoinedPlayerView() {
-  const row = document.createElement('div');
-  row.className = 'player-item player-item--centered';
-
-  const label = document.createElement('span');
-  label.className = 'player-label';
-  label.textContent = `You are Player ${myPlayerNumber}`;
-
-  const btn = document.createElement('button');
-  btn.className = 'btn btn-reveal';
-  btn.id = 'myRevealBtn';
-  btn.textContent = revealedPlayerIndices.has(myPlayerNumber - 1)
-    ? 'flip again'
-    : 'flip my card';
-  btn.onclick = () => revealPlayer(myPlayerNumber - 1);
-
-  row.appendChild(label);
-  row.appendChild(btn);
-  dom.game.list.appendChild(row);
+  dom.game.list.classList.add('solo');
+  const card = makeMiniCard(myPlayerNumber, {
+    revealed: revealedPlayerIndices.has(myPlayerNumber - 1),
+  });
+  card.id = 'myRevealBtn';
+  dom.game.list.appendChild(card);
 }
 
 function renderHostPlayersList() {
   const assignments = currentGame.playerAssignments || {};
   for (let i = 0; i < currentGame.numPlayers; i++) {
     const playerNum = i + 1;
-    const row = document.createElement('div');
-    row.className = 'player-item';
-
-    const label = document.createElement('span');
-    label.className = 'player-label';
-    if (playerNum === 1 && isHost) {
-      label.textContent = 'Player 1 (You — Host)';
-      label.style.color = 'var(--accent-primary)';
-    } else {
-      label.textContent = `Player ${playerNum}`;
-      if (assignments[playerNum]) {
-        label.textContent += ' ✓';
-        label.style.color = 'var(--accent-insider)';
-      }
-    }
-
-    const btn = document.createElement('button');
-    btn.className = 'btn btn-reveal';
-    btn.dataset.playerIndex = i;
-    const wasRevealed = revealedPlayerIndices.has(i);
-    if (wasRevealed) {
-      btn.textContent = 'show again';
-      btn.classList.add('revealed');
-    } else {
-      btn.textContent = 'flip';
-    }
-    btn.onclick = () => revealPlayer(i);
-
-    row.appendChild(label);
-    row.appendChild(btn);
-    dom.game.list.appendChild(row);
+    const card = makeMiniCard(playerNum, {
+      host:     playerNum === 1 && isHost,
+      joined:   !!assignments[playerNum] && !(playerNum === 1 && isHost),
+      revealed: revealedPlayerIndices.has(i),
+    });
+    dom.game.list.appendChild(card);
   }
 }
 

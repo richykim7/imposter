@@ -82,7 +82,7 @@ async function run() {
     await shot(page, '03-game');
 
     /* ===== Reveal modal — back face ===== */
-    await page.click('button.btn-reveal[data-player-index="0"]');
+    await page.click('button.mini-card[data-player-index="0"]');
     await page.waitForSelector('#revealModal.show');
     // The flip timer is 600ms in; screenshot at 250ms so we see the back.
     // Also pin state explicitly in case timing varies.
