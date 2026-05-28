@@ -1,335 +1,109 @@
-Old project
-
 # Impostor Game
 
-A minimal but polished web app for an impostor/spyfall-style party game. One player is randomly selected as the impostor who doesn't know the secret word, while all other players are insiders who know it.
+A web-based impostor/spyfall-style party game with AI-generated words. Works
+on one device (pass-and-play) or many devices (each player joins with a code).
 
 ## Features
 
-- **AI-Powered Word Generation** - Uses Groq's OpenAI-compatible API to generate creative words from any category
-- **Crypto-Secure Randomness** - Impostor selection uses Node's `crypto.randomInt()` for fairness
-- **Privacy-First Reveal Flow** - Each player reveals their role privately with auto-hiding screens
-- **Mobile-First Design** - Clean, modern dark theme that works beautifully on all devices
-- **Render-Ready** - Deploy in minutes with zero configuration
-- **No Database Required** - In-memory game state keeps things simple
+- **Pass-and-play OR multi-device** — works either way with the same code
+- **AI-powered words** via Groq, with an offline word-pack fallback if no key
+- **Multi-impostor** (1 to floor((n-1)/2))
+- **Difficulty modes** (easy / medium / hard) drive how mainstream the picks are
+- **Everyone-gets-a-word mode** — impostor gets a *different* word
+- **Imposter-gets-a-hint mode** — abstract 1–2 word hint
+- **Chaos mode (opt-in)** — 1 in 20 rounds, everyone is an impostor
+- **Round chaining** with same code, same or different category
+- **Re-viewable reveals** — missed the 10s auto-hide? Tap "Show again"
+- **Per-player tokens** so others can't peek at your role or end the round
+- **Share link with `?code=…`** routes new visitors to the join screen
+- **Cryptographically uniform** impostor selection (proven by chi-square tests)
 
-## Tech Stack
-
-- **Backend**: Node.js + Express
-- **Frontend**: Vanilla HTML/CSS/JavaScript (no frameworks)
-- **AI**: Groq API (OpenAI-compatible)
-- **Deployment**: Render-optimized
-
-## Local Development
-
-### Prerequisites
-
-- Node.js 18+ installed
-- A Groq API key (get one at [console.groq.com](https://console.groq.com/keys))
-
-### Setup
-
-1. Clone and install dependencies:
+## Run it
 
 ```bash
 npm install
-```
-
-2. Create a `.env` file in the root directory:
-
-```bash
-GROQ_API_KEY=your_groq_api_key_here
-PORT=3000
-```
-
-3. Start the server:
-
-```bash
+cp env.template .env        # optional — add GROQ_API_KEY for AI words
 npm start
 ```
 
-4. Open your browser to `http://localhost:3000`
+Open <http://localhost:3000>. Without `GROQ_API_KEY` the app runs in offline
+mode using built-in word packs (countries, cities, animals, movies, food,
+sports, fruits, vegetables, professions, colors, instruments, drinks).
 
-## Deployment to Render
+## Test
 
-### One-Click Deploy
-
-1. Push this code to a GitHub repository
-2. Go to [render.com](https://render.com) and create a new Web Service
-3. Connect your GitHub repository
-4. Configure the service:
-   - **Build Command**: (leave empty or use `npm install`)
-   - **Start Command**: `npm start`
-   - **Environment Variables**: Add `GROQ_API_KEY` with your Groq API key
-
-### Manual Configuration
-
-- **Name**: impostor-game (or your choice)
-- **Region**: Choose closest to your users
-- **Branch**: main
-- **Runtime**: Node
-- **Build Command**: `npm install`
-- **Start Command**: `npm start`
-
-### Required Environment Variables
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `GROQ_API_KEY` | Your Groq API key from console.groq.com | Yes |
-| `PORT` | Port number (Render sets this automatically) | No |
-
-## How to Play
-
-1. **Setup Game**
-   - Enter a category (e.g., "Countries", "Animals", "Movies")
-   - Choose number of players (3-12)
-   - Click "Create Game"
-
-2. **Reveal Roles**
-   - Pass the device to each player
-   - Each player clicks their "Reveal Player X" button
-   - Screen shows if they're an IMPOSTOR or INSIDER
-   - Insiders see the secret word, impostor doesn't
-   - Screen auto-hides after 10 seconds
-
-3. **Play the Game**
-   - Players take turns asking yes/no questions
-   - Insiders know the word and try to identify the impostor
-   - The impostor tries to blend in and guess the word
-   - After discussion, vote on who the impostor is!
-
-4. **Reset**
-   - Click "Reset" to start a new game
-
-## API Documentation
-
-### Endpoints
-
-#### `GET /api/config`
-Returns public configuration constants.
-
-**Response:**
-```json
-{
-  "minPlayers": 3,
-  "maxPlayers": 12,
-  "defaultPlayers": 3,
-  "revealAutoHideSeconds": 10
-}
-```
-
-#### `GET /api/status`
-Returns current game status (without revealing secrets).
-
-**Response (Active Game):**
-```json
-{
-  "active": true,
-  "category": "Animals",
-  "numPlayers": 5,
-  "revealedCount": 2,
-  "createdAt": "2026-01-16T12:34:56.789Z"
-}
-```
-
-**Response (No Active Game):**
-```json
-{
-  "active": false
-}
-```
-
-#### `POST /api/new-game`
-Creates a new game with AI-generated word.
-
-**Request:**
-```json
-{
-  "category": "Countries",
-  "numPlayers": 5
-}
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "numPlayers": 5,
-  "category": "Countries"
-}
-```
-
-**Errors:**
-- `400` - Invalid category or number of players
-- `500` - API failure or server error
-
-#### `POST /api/reveal`
-Reveals a player's role and word (if insider).
-
-**Request:**
-```json
-{
-  "playerIndex": 0
-}
-```
-
-**Response (Insider):**
-```json
-{
-  "role": "INSIDER",
-  "word": "Brazil",
-  "category": "Countries",
-  "playerIndex": 0
-}
-```
-
-**Response (Impostor):**
-```json
-{
-  "role": "IMPOSTOR",
-  "word": null,
-  "category": "Countries",
-  "playerIndex": 2
-}
-```
-
-**Errors:**
-- `404` - No active game
-- `400` - Invalid player index
-- `403` - Player already revealed
-
-#### `POST /api/reset`
-Resets the current game.
-
-**Response:**
-```json
-{
-  "success": true,
-  "message": "Game reset successfully"
-}
-```
-
-## Configuration
-
-### Changing the AI Model
-
-The Groq model name is defined in exactly ONE place: `config.js`
-
-To change the model, edit the `MODEL_NAME` constant:
-
-```javascript
-// config.js
-module.exports = {
-  MODEL_NAME: 'llama-3.3-70b-versatile', // Change here only
-  // ... other config
-};
-```
-
-Available Groq models:
-- `llama-3.3-70b-versatile` (default)
-- `openai/gpt-oss-120b`
-- `mixtral-8x7b-32768`
-- And more at [console.groq.com/docs/models](https://console.groq.com/docs/models)
-
-### Game Settings
-
-All game constants are in `config.js`:
-
-```javascript
-module.exports = {
-  MODEL_NAME: 'llama-3.3-70b-versatile',
-  MIN_PLAYERS: 3,
-  MAX_PLAYERS: 12,
-  DEFAULT_PLAYERS: 3,
-  MIN_CATEGORY_LENGTH: 2,
-  MAX_CATEGORY_LENGTH: 60,
-  REVEAL_AUTO_HIDE_SECONDS: 10,
-  // ... more
-};
-```
-
-## Example cURL Requests
-
-### Create a Game
 ```bash
-curl -X POST http://localhost:3000/api/new-game \
-  -H "Content-Type: application/json" \
-  -d '{"category": "Movies", "numPlayers": 4}'
+npm test           # full integration simulator (118 assertions)
+npm run test:rng   # randomizer uniformity (chi-square on 120k+ trials)
 ```
 
-### Reveal Player 1
-```bash
-curl -X POST http://localhost:3000/api/reveal \
-  -H "Content-Type: application/json" \
-  -d '{"playerIndex": 0}'
-```
+## How to play
 
-### Check Game Status
-```bash
-curl http://localhost:3000/api/status
-```
+1. **Host** enters a category, picks player count and impostor count, creates
+   the game.
+2. **Share** the 6-character code (or the `?code=…` link) with other devices,
+   or just pass one device around.
+3. **Each player reveals their own role.** The impostor doesn't see the word;
+   everyone else does. (Or with "everyone gets a word", the impostor sees a
+   *different* word.)
+4. **Talk it out**, vote on the impostor.
+5. **Host** taps "Reveal All" to end the round; results appear for all players.
+6. **New round, same code** — pick the same category or a new one. Player
+   slots are preserved across rounds.
 
-### Reset Game
-```bash
-curl -X POST http://localhost:3000/api/reset \
-  -H "Content-Type: application/json"
-```
+## Architecture
 
-## Architecture Decisions
+- **Backend** (`server.js` + `lib/`) — Express, in-memory state, token-based
+  authorization, `crypto.randomInt` for all randomness.
+- **Frontend** (`public/`) — vanilla JS, polling-based sync on `roundId`.
+- **No DB** — state lives in memory and is cleaned up after 24h. Game state
+  is lost on server restart (acceptable for party games).
 
-### Why In-Memory State?
+### Authorization model
 
-This app stores game state in server memory (not a database) for simplicity:
-- ✅ Zero configuration
-- ✅ Fast performance
-- ✅ No persistence costs
-- ⚠️ Game resets on server restart (perfect for party games!)
+Each game has:
+- A **hostToken** issued at creation (held by the creator).
+- A **playerToken** per joined slot, issued via `/api/game/:code/join`.
 
-For persistent multi-game support, consider adding Redis or a database.
+A slot's `playerToken` authorizes revealing that slot; otherwise the
+`hostToken` authorizes it (so pass-and-play, where no one else has joined,
+"just works"). Once a player joins a slot, the host can no longer peek at it
+— preventing cheating in multi-device games.
 
-### Why Crypto-Secure Randomness?
+### Endpoints (high level)
 
-The impostor selection uses Node's `crypto.randomInt()` instead of `Math.random()`:
-- Cryptographically secure
-- No bias or predictability
-- Fair selection across all players
+| Method | Path | Notes |
+|---|---|---|
+| POST | `/api/new-game` | Create, returns `gameCode` + `hostToken` |
+| POST | `/api/game/:code/join` | Returns `playerToken` for the chosen slot |
+| POST | `/api/reveal` | Body: `{playerIndex, gameCode, token}` |
+| POST | `/api/reveal-all` | Host-only to end; anyone can fetch results after |
+| POST | `/api/new-game-same-code` | Host-only; bumps `roundId` |
+| POST | `/api/reset` | Host-only |
+| GET  | `/api/status?gameCode=…` | Public; no tokens leaked |
+| GET  | `/api/game/:code` | Lookup for join screen |
+| GET  | `/api/config` | Public constants + `offlineMode` flag |
 
-### Why Single Model Constant?
+## v2 changelog (relative to v1)
 
-The Groq model name is defined in ONE place (`config.js`) to:
-- Make model changes trivial (edit one line)
-- Prevent version mismatches
-- Enable easy experimentation
-
-### Why No Framework?
-
-Vanilla JS keeps the frontend:
-- Under 200 lines of code
-- Zero build steps
-- Fast page loads
-- Easy to understand and modify
-
-## Security Notes
-
-- The server never logs the secret word in production
-- Each player can only reveal their role once
-- Impostor selection is cryptographically random
-- Input validation prevents injection attacks
-- CORS disabled by default (single-origin app)
-
-## Troubleshooting
-
-### "GROQ_API_KEY environment variable not set"
-Make sure you've created a `.env` file with your API key, or set the environment variable on Render.
-
-### "Groq API error: 401"
-Your API key is invalid. Get a new one from [console.groq.com](https://console.groq.com/keys).
-
-### "Failed to create game"
-Check the server logs. If the Groq API fails twice, the app uses a fallback word instead of breaking.
-
-### Port already in use
-Change the `PORT` in your `.env` file to another number (e.g., 3001).
+- **Fixed the chaos-cascade bug**: after a chaos round, subsequent same-code
+  rounds used to silently make *everyone* the impostor forever. Now the
+  intended impostor count is stored separately and re-used.
+- **Fixed the same-category stranding bug**: non-host clients can now detect
+  a new round via `roundId` (not just by comparing category strings).
+- **Fixed the URL-link host-default bug**: visiting `?code=XXX` without a
+  stored session now routes to the join screen instead of silently treating
+  the visitor as the host.
+- **Fixed the one-time-reveal trap**: re-tapping reveals your role again, as
+  long as you hold the same token. Missing the 10s auto-hide is no longer
+  fatal.
+- **Added token-based authorization** on all mutating endpoints. The status
+  endpoint never leaks tokens.
+- **Made chaos mode opt-in** (default off) — used to be a silent 5% surprise.
+- **Bigger fallback word packs** (12 categories of ~30 items vs. 8 generic).
+- **Round counter** in the game UI.
+- **Rate limiting** on `/api/new-game` (configurable via env).
+- **Offline mode** when `GROQ_API_KEY` is missing — uses local packs.
 
 ## License
 
