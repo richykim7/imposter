@@ -8,35 +8,36 @@
 </head>
 <body>
   <div class="container">
-    <!-- Header -->
     <header>
       <h1>🎭 Impostor Game</h1>
       <p class="subtitle">A party game of deception and deduction</p>
     </header>
 
-    <!-- Info Note -->
     <div class="info-note">
       <small>Each game gets a unique code. Share it so friends can join on their phones!</small>
     </div>
 
-    <!-- Status Line -->
+    <div id="offlineBanner" class="info-note is-danger hidden">
+      <small>Offline mode: no Groq API key — using built-in word packs.</small>
+    </div>
+
     <div id="statusLine" class="status-line hidden"></div>
 
     <!-- Setup Section -->
     <section id="setupSection" class="card">
-      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-        <h2 style="margin: 0;">Setup New Game</h2>
-        <button id="switchToJoinBtn" class="btn btn-secondary btn-sm" style="width: auto;">
+      <div class="setup-header">
+        <h2 class="m-0">Setup New Game</h2>
+        <button id="switchToJoinBtn" class="btn btn-secondary btn-sm w-auto">
           Join Game Instead
         </button>
       </div>
-      
+
       <div class="form-group">
         <label for="categoryInput">Category</label>
-        <input 
-          type="text" 
-          id="categoryInput" 
-          placeholder="e.g., Countries, Animals, Movies..." 
+        <input
+          type="text"
+          id="categoryInput"
+          placeholder="e.g., Countries, Animals, Movies..."
           maxlength="60"
           autocomplete="off"
         >
@@ -44,31 +45,30 @@
       </div>
 
       <div class="form-group">
-        <label>Number of Players</label>
-        <div class="player-selection-row">
-          <button class="player-btn" data-players="3">3</button>
-          <button class="player-btn" data-players="4">4</button>
-          <button class="player-btn" data-players="5">5</button>
-          <button class="player-btn" id="customPlayersBtn">6+</button>
+        <label for="numPlayersInput">Number of Players</label>
+        <div class="stepper" role="group">
+          <button class="stepper-btn" type="button" data-step="-1" aria-label="Fewer players">−</button>
+          <input
+            id="numPlayersInput"
+            class="stepper-value"
+            type="number"
+            min="3" max="12" value="3"
+            inputmode="numeric"
+            readonly
+            aria-live="polite">
+          <button class="stepper-btn" type="button" data-step="1" aria-label="More players">+</button>
         </div>
-        <div id="customPlayersInput" class="custom-input hidden">
-          <input 
-            type="number" 
-            id="numPlayersInput" 
-            min="6" 
-            max="12" 
-            placeholder="Enter number (6-12)"
-          >
-        </div>
-        <small class="hint">3-12 players</small>
+        <small class="hint">3–12 players</small>
       </div>
 
-      <div class="form-group" id="impostersGroup" style="display: none;">
+      <div class="form-group hidden" id="impostersGroup">
         <label>Number of Imposters</label>
         <div class="player-selection-row">
           <button class="imposter-btn" data-imposters="1">1</button>
           <button class="imposter-btn" data-imposters="2">2</button>
           <button class="imposter-btn" data-imposters="3">3</button>
+          <button class="imposter-btn" data-imposters="4">4</button>
+          <button class="imposter-btn" data-imposters="5">5</button>
         </div>
         <small class="hint">Select number of imposters</small>
       </div>
@@ -76,14 +76,13 @@
       <div class="form-group">
         <label>Difficulty</label>
         <div class="difficulty-row">
-          <button class="difficulty-btn" data-difficulty="easy">Easy</button>
-          <button class="difficulty-btn active" data-difficulty="medium">Medium</button>
-          <button class="difficulty-btn" data-difficulty="hard">Hard</button>
+          <button class="difficulty-btn" data-difficulty="easy" data-hint="Well-known, mainstream items everyone would recognize">Easy</button>
+          <button class="difficulty-btn active" data-difficulty="medium" data-hint="A balanced mix of common and moderately known items">Medium</button>
+          <button class="difficulty-btn" data-difficulty="hard" data-hint="Lesser-known, surprising items beyond the obvious picks">Hard</button>
         </div>
         <small class="hint" id="difficultyHint">A balanced mix of common and moderately known items</small>
       </div>
 
-      <!-- Settings Section -->
       <div class="settings-section">
         <div class="settings-header">
           <h3>Settings</h3>
@@ -104,37 +103,40 @@
               <span class="toggle-text">Imposter gets a hint</span>
             </label>
           </div>
+          <div class="setting-item">
+            <label class="toggle-label">
+              <input type="checkbox" id="chaosModeToggle" class="toggle-input">
+              <span class="toggle-slider"></span>
+              <span class="toggle-text">Chaos mode (1 in 20 chance ALL players are impostor)</span>
+            </label>
+          </div>
         </div>
       </div>
 
-      <button id="createGameBtn" class="btn btn-primary" style="margin-top: 1.5rem;">
-        Create Game
-      </button>
+      <button id="createGameBtn" class="btn btn-primary mt-lg">Create Game</button>
     </section>
 
     <!-- Join Game Section -->
     <section id="joinSection" class="card hidden">
       <h2>Join Game</h2>
-      
+
       <div class="form-group">
         <label for="gameCodeInput">Game Code</label>
-        <input 
-          type="text" 
-          id="gameCodeInput" 
-          placeholder="Enter 6-character code" 
+        <input
+          type="text"
+          id="gameCodeInput"
+          class="input-code"
+          placeholder="Enter 6-character code"
           maxlength="6"
           autocomplete="off"
-          style="text-transform: uppercase; letter-spacing: 0.2em;"
         >
         <small class="hint">Enter the game code from the host</small>
       </div>
 
-      <button id="joinGameBtn" class="btn btn-primary">
-        Join Game
-      </button>
-      
-      <div style="margin-top: 1rem; text-align: center;">
-        <button id="backToSetupBtn" class="btn btn-secondary" style="width: auto;">
+      <button id="joinGameBtn" class="btn btn-primary">Join Game</button>
+
+      <div class="join-back-row">
+        <button id="backToSetupBtn" class="btn btn-secondary w-auto">
           ← Create New Game Instead
         </button>
       </div>
@@ -143,25 +145,24 @@
     <!-- Player Selection Section (shown after joining) -->
     <section id="playerSelectionSection" class="card hidden">
       <h2>Select Your Player Number</h2>
-      <div id="playerSelectionInfo" class="game-info" style="margin-bottom: 1.5rem;"></div>
+      <div id="playerSelectionInfo" class="game-info mb-lg"></div>
       <div id="playerSelectionButtons" class="player-selection-row"></div>
-      <button id="confirmPlayerBtn" class="btn btn-primary" style="margin-top: 1rem; display: none;">
+      <button id="confirmPlayerBtn" class="btn btn-primary mt-md hidden">
         Confirm Player Number
       </button>
     </section>
 
-    <!-- New Round Setup Section (shown when host starts new game with same code) -->
+    <!-- New Round Setup (shown when host starts new round) -->
     <section id="newRoundSection" class="card hidden">
       <h2>New Round</h2>
-      
-      <!-- Game Code Display -->
+
       <div id="newRoundCodeDisplay" class="game-code-display">
         <div class="game-code-label">Game Code</div>
         <div class="game-code-value" id="newRoundCodeValue"></div>
         <small class="game-code-hint">Same players can continue with this code</small>
       </div>
 
-      <button id="sameCategoryBtn" class="btn btn-primary" style="margin-bottom: 1rem;">
+      <button id="sameCategoryBtn" class="btn btn-primary mb-md">
         Same Category (<span id="sameCategoryName"></span>)
       </button>
 
@@ -169,10 +170,10 @@
 
       <div class="form-group">
         <label for="newRoundCategoryInput">Category for Next Round</label>
-        <input 
-          type="text" 
-          id="newRoundCategoryInput" 
-          placeholder="e.g., Countries, Animals, Movies..." 
+        <input
+          type="text"
+          id="newRoundCategoryInput"
+          placeholder="e.g., Countries, Animals, Movies..."
           maxlength="60"
           autocomplete="off"
         >
@@ -181,33 +182,34 @@
       <div class="form-group">
         <label>Difficulty</label>
         <div class="difficulty-row">
-          <button class="difficulty-btn new-round-difficulty-btn" data-difficulty="easy">Easy</button>
-          <button class="difficulty-btn new-round-difficulty-btn active" data-difficulty="medium">Medium</button>
-          <button class="difficulty-btn new-round-difficulty-btn" data-difficulty="hard">Hard</button>
+          <button class="difficulty-btn new-round-difficulty-btn" data-difficulty="easy" data-hint="Well-known, mainstream items everyone would recognize">Easy</button>
+          <button class="difficulty-btn new-round-difficulty-btn active" data-difficulty="medium" data-hint="A balanced mix of common and moderately known items">Medium</button>
+          <button class="difficulty-btn new-round-difficulty-btn" data-difficulty="hard" data-hint="Lesser-known, surprising items beyond the obvious picks">Hard</button>
         </div>
         <small class="hint" id="newRoundDifficultyHint">A balanced mix of common and moderately known items</small>
       </div>
 
-      <button id="startNewRoundBtn" class="btn btn-primary">
-        Start with New Category
-      </button>
+      <button id="startNewRoundBtn" class="btn btn-primary">Start with New Category</button>
     </section>
 
     <!-- Game Section -->
     <section id="gameSection" class="card hidden">
       <div class="game-header">
         <h2>Active Game</h2>
-        <div class="game-header-buttons" id="gameHeaderButtons" style="display: flex; gap: 0.5rem;">
-          <button id="revealAllBtn" class="btn btn-warning btn-sm" style="display: block;">Reveal All</button>
-          <button id="resetBtn" class="btn btn-secondary btn-sm" style="display: block;">Reset</button>
+        <div class="game-header-buttons">
+          <button id="revealAllBtn" class="btn btn-warning btn-sm">Reveal All</button>
+          <button id="resetBtn" class="btn btn-secondary btn-sm">Reset</button>
         </div>
       </div>
 
-      <!-- Game Code Display (shown when code exists) -->
       <div id="gameCodeDisplay" class="game-code-display hidden">
         <div class="game-code-label">Game Code</div>
         <div class="game-code-value" id="gameCodeValue"></div>
-        <small class="game-code-hint">Share this code so others can join on their phones</small>
+        <small class="game-code-hint">Share this code or the link below so others can join</small>
+        <div class="share-link-row">
+          <input type="text" id="gameShareLink" readonly class="share-link-input">
+          <button id="copyShareLinkBtn" class="btn btn-secondary btn-sm">Copy link</button>
+        </div>
       </div>
 
       <div class="game-info">
@@ -219,6 +221,10 @@
           <strong>Players:</strong>
           <span id="gamePlayersDisplay"></span>
         </div>
+        <div class="info-item">
+          <strong>Round:</strong>
+          <span id="gameRoundDisplay">1</span>
+        </div>
       </div>
 
       <div class="players-section">
@@ -227,7 +233,6 @@
       </div>
     </section>
 
-    <!-- Footer -->
     <footer>
       <p>Powered by Groq AI • Built for Render</p>
     </footer>
@@ -249,26 +254,21 @@
       </div>
     </div>
   </div>
-  
+
   <!-- Reveal All Modal -->
   <div id="revealAllModal" class="modal hidden">
     <div class="modal-content reveal-all-modal">
       <h2>🎭 Game Results</h2>
-      <div id="revealAllContent" class="reveal-all-content">
-        <!-- Results will be shown here -->
-      </div>
-      <div id="revealAllHostButtons" style="margin-top: 1.5rem;">
+      <div id="revealAllContent" class="reveal-all-content"></div>
+      <div id="revealAllHostButtons" class="mt-lg">
         <button id="startNewGameFromModalBtn" class="btn btn-primary">
           Start New Round
         </button>
       </div>
-      <button id="closeRevealAllModalBtn" class="btn btn-secondary" style="margin-top: 0.5rem;">
-        Close
-      </button>
+      <button id="closeRevealAllModalBtn" class="btn btn-secondary mt-sm">Close</button>
     </div>
   </div>
 
   <script src="app.js"></script>
 </body>
 </html>
-

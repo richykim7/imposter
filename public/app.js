@@ -1,523 +1,534 @@
 /**
- * Impostor Game - Frontend Logic
+ * Impostor Game — Frontend
+ *
+ * Token-based authorization: each game has a hostToken (held by the
+ * creator) and per-player playerTokens (issued on /join). The same token
+ * authorizes re-revealing your own role — missing the 10s auto-hide is
+ * not fatal.
  */
 
-// DOM Elements
-const setupSection = document.getElementById('setupSection');
-const gameSection = document.getElementById('gameSection');
-const statusLine = document.getElementById('statusLine');
-const categoryInput = document.getElementById('categoryInput');
-const numPlayersInput = document.getElementById('numPlayersInput');
-const customPlayersInput = document.getElementById('customPlayersInput');
-const customPlayersBtn = document.getElementById('customPlayersBtn');
-const playerButtons = document.querySelectorAll('.player-btn');
-const impostersGroup = document.getElementById('impostersGroup');
-const imposterButtons = document.querySelectorAll('.imposter-btn');
-const createGameBtn = document.getElementById('createGameBtn');
-const resetBtn = document.getElementById('resetBtn');
-const revealAllBtn = document.getElementById('revealAllBtn');
-const gameCategoryDisplay = document.getElementById('gameCategoryDisplay');
-const gamePlayersDisplay = document.getElementById('gamePlayersDisplay');
-const gameCodeDisplay = document.getElementById('gameCodeDisplay');
-const gameCodeValue = document.getElementById('gameCodeValue');
-const playersList = document.getElementById('playersList');
-const revealModal = document.getElementById('revealModal');
-const revealAllModal = document.getElementById('revealAllModal');
-const revealAllContent = document.getElementById('revealAllContent');
-const startNewGameFromModalBtn = document.getElementById('startNewGameFromModalBtn');
-const closeRevealAllModalBtn = document.getElementById('closeRevealAllModalBtn');
-const modalPlayerTitle = document.getElementById('modalPlayerTitle');
-const modalRole = document.getElementById('modalRole');
-const modalWord = document.getElementById('modalWord');
-const modalCountdown = document.getElementById('modalCountdown');
-const hideModalBtn = document.getElementById('hideModalBtn');
-const settingsToggle = document.getElementById('settingsToggle');
-const settingsContent = document.getElementById('settingsContent');
-const everyoneGetsWordToggle = document.getElementById('everyoneGetsWordToggle');
-const imposterGetsHintToggle = document.getElementById('imposterGetsHintToggle');
-const joinSection = document.getElementById('joinSection');
-const gameCodeInput = document.getElementById('gameCodeInput');
-const joinGameBtn = document.getElementById('joinGameBtn');
-const switchToJoinBtn = document.getElementById('switchToJoinBtn');
-const backToSetupBtn = document.getElementById('backToSetupBtn');
-const playerSelectionSection = document.getElementById('playerSelectionSection');
-const playerSelectionInfo = document.getElementById('playerSelectionInfo');
-const playerSelectionButtons = document.getElementById('playerSelectionButtons');
-const confirmPlayerBtn = document.getElementById('confirmPlayerBtn');
-const newRoundSection = document.getElementById('newRoundSection');
-const newRoundCodeDisplay = document.getElementById('newRoundCodeDisplay');
-const newRoundCodeValue = document.getElementById('newRoundCodeValue');
-const newRoundCategoryInput = document.getElementById('newRoundCategoryInput');
-const startNewRoundBtn = document.getElementById('startNewRoundBtn');
-const sameCategoryBtn = document.getElementById('sameCategoryBtn');
-const sameCategoryName = document.getElementById('sameCategoryName');
-const revealAllHostButtons = document.getElementById('revealAllHostButtons');
-const difficultyButtons = document.querySelectorAll('.difficulty-btn:not(.new-round-difficulty-btn)');
-const difficultyHint = document.getElementById('difficultyHint');
-const newRoundDifficultyButtons = document.querySelectorAll('.new-round-difficulty-btn');
-const newRoundDifficultyHint = document.getElementById('newRoundDifficultyHint');
+// ============================================================
+// DOM — grouped by screen / region
+// ============================================================
 
-// Used words persistence (localStorage)
+const $ = id => document.getElementById(id);
+
+const dom = {
+  status: $('statusLine'),
+  offlineBanner: $('offlineBanner'),
+
+  setup: {
+    section: $('setupSection'),
+    category: $('categoryInput'),
+    numPlayers: $('numPlayersInput'),
+    stepperBtns: document.querySelectorAll('.stepper-btn'),
+    impostersGroup: $('impostersGroup'),
+    imposterBtns: document.querySelectorAll('.imposter-btn'),
+    difficultyBtns: document.querySelectorAll('.difficulty-btn:not(.new-round-difficulty-btn)'),
+    difficultyHint: $('difficultyHint'),
+    settingsToggle: $('settingsToggle'),
+    settingsContent: $('settingsContent'),
+    everyoneGetsWordToggle: $('everyoneGetsWordToggle'),
+    imposterGetsHintToggle: $('imposterGetsHintToggle'),
+    chaosModeToggle: $('chaosModeToggle'),
+    createBtn: $('createGameBtn'),
+    switchToJoinBtn: $('switchToJoinBtn'),
+  },
+
+  join: {
+    section: $('joinSection'),
+    code: $('gameCodeInput'),
+    joinBtn: $('joinGameBtn'),
+    backToSetupBtn: $('backToSetupBtn'),
+  },
+
+  pickSlot: {
+    section: $('playerSelectionSection'),
+    info: $('playerSelectionInfo'),
+    buttons: $('playerSelectionButtons'),
+    confirmBtn: $('confirmPlayerBtn'),
+  },
+
+  game: {
+    section: $('gameSection'),
+    category: $('gameCategoryDisplay'),
+    players: $('gamePlayersDisplay'),
+    round: $('gameRoundDisplay'),
+    code: $('gameCodeDisplay'),
+    codeValue: $('gameCodeValue'),
+    shareLink: $('gameShareLink'),
+    copyShareLinkBtn: $('copyShareLinkBtn'),
+    list: $('playersList'),
+    revealAllBtn: $('revealAllBtn'),
+    resetBtn: $('resetBtn'),
+  },
+
+  newRound: {
+    section: $('newRoundSection'),
+    codeValue: $('newRoundCodeValue'),
+    categoryInput: $('newRoundCategoryInput'),
+    sameCategoryBtn: $('sameCategoryBtn'),
+    sameCategoryName: $('sameCategoryName'),
+    startBtn: $('startNewRoundBtn'),
+    difficultyBtns: document.querySelectorAll('.new-round-difficulty-btn'),
+    difficultyHint: $('newRoundDifficultyHint'),
+  },
+
+  revealModal: {
+    root: $('revealModal'),
+    title: $('modalPlayerTitle'),
+    role: $('modalRole'),
+    word: $('modalWord'),
+    countdown: $('modalCountdown'),
+    hideBtn: $('hideModalBtn'),
+  },
+
+  revealAllModal: {
+    root: $('revealAllModal'),
+    content: $('revealAllContent'),
+    hostButtons: $('revealAllHostButtons'),
+    startNewBtn: $('startNewGameFromModalBtn'),
+    closeBtn: $('closeRevealAllModalBtn'),
+  },
+};
+
+// ============================================================
+// Storage
+// ============================================================
+
 const USED_WORDS_KEY = 'imposter_used_words';
+const SESSION_KEY = 'imposter_session';
+const PREFS_KEY = 'imposter_prefs'; // user preferences persisted across games
+
+function safeJSON(s, fallback) { try { return s ? JSON.parse(s) : fallback; } catch { return fallback; } }
 
 function getUsedWords() {
-  try {
-    const stored = localStorage.getItem(USED_WORDS_KEY);
-    return stored ? JSON.parse(stored) : [];
-  } catch {
-    return [];
-  }
+  return safeJSON(localStorage.getItem(USED_WORDS_KEY), []);
 }
-
 function addUsedWord(word) {
+  if (!word || typeof word !== 'string') return;
   try {
-    if (!word || typeof word !== 'string') return;
     const words = getUsedWords();
-    const normalized = word.toLowerCase().trim();
-    if (words.some(w => w.toLowerCase().trim() === normalized)) return;
+    const n = word.toLowerCase().trim();
+    if (words.some(w => w.toLowerCase().trim() === n)) return;
     words.push(word.trim());
-    // Cap at 500 to avoid unbounded growth
     if (words.length > 500) words.splice(0, words.length - 500);
     localStorage.setItem(USED_WORDS_KEY, JSON.stringify(words));
-  } catch {
-    // localStorage may be unavailable (private browsing, quota exceeded)
-  }
+  } catch {}
 }
 
-function clearUsedWords() {
-  localStorage.removeItem(USED_WORDS_KEY);
+function saveSession(s) { try { localStorage.setItem(SESSION_KEY, JSON.stringify(s)); } catch {} }
+function loadSession() { return safeJSON(localStorage.getItem(SESSION_KEY), null); }
+function clearSession() { try { localStorage.removeItem(SESSION_KEY); } catch {} }
+
+function loadPrefs() {
+  return safeJSON(localStorage.getItem(PREFS_KEY), {
+    numPlayers: 3,
+    numImposters: 1,
+    difficulty: 'medium',
+    chaosModeEnabled: false,
+    everyoneGetsWord: false,
+    imposterGetsHint: false,
+    lastCategory: '',
+  });
+}
+function savePrefs(p) {
+  try { localStorage.setItem(PREFS_KEY, JSON.stringify(p)); } catch {}
+}
+function updatePref(patch) {
+  const p = { ...loadPrefs(), ...patch };
+  savePrefs(p);
 }
 
-// App State
+// ============================================================
+// State
+// ============================================================
+
 let appConfig = null;
 let currentGame = null;
-let hideTimer = null;
 let countdownInterval = null;
 let selectedPlayers = 3;
 let selectedImposters = 1;
 let selectedDifficulty = 'medium';
 let newRoundDifficulty = 'medium';
-let customInputActive = false;
+
 let currentGameCode = null;
 let myPlayerNumber = null;
-let pollingInterval = null;
+let myToken = null;
 let isHost = false;
+let currentRoundId = null;
+
+let pollingInterval = null;
 let revealedPlayerIndices = new Set();
 let lastKnownAssignments = null;
+let lastAllRevealed = false;
+
+// ============================================================
+// Utilities
+// ============================================================
 
 function escapeHtml(str) {
-  if (!str) return '';
-  return String(str).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  if (str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
-/**
- * Initialize the app
- */
-async function init() {
-  try {
-    const response = await fetch('/api/config');
-    appConfig = await response.json();
-    
-    // Check if user has localStorage data (proof they belong to a game)
-    const urlParams = new URLSearchParams(window.location.search);
-    const urlGameCode = urlParams.get('code');
-    const storedGameCode = localStorage.getItem('gameCode');
-    const storedPlayerNumber = localStorage.getItem('playerNumber');
-    
-    if (urlGameCode || storedGameCode) {
-      const gameCodeToCheck = urlGameCode || storedGameCode;
-      
-      const statusResponse = await fetch(`/api/status?gameCode=${gameCodeToCheck}`);
-      const status = await statusResponse.json();
-    
-      if (status.active) {
-        currentGame = {
-          category: status.category,
-          numPlayers: status.numPlayers,
-          revealedCount: status.revealedCount,
-          playerAssignments: status.playerAssignments || {}
-        };
-        
-        currentGameCode = gameCodeToCheck;
-        myPlayerNumber = storedPlayerNumber ? parseInt(storedPlayerNumber, 10) : 1;
-        isHost = (myPlayerNumber === 1);
-        
-        localStorage.setItem('gameCode', gameCodeToCheck);
-        
-        showGameSection();
-        startPolling();
-      } else {
-        localStorage.removeItem('gameCode');
-        localStorage.removeItem('playerNumber');
-        showSetupSection();
-      }
-    } else {
-      showSetupSection();
-    }
-  } catch (error) {
-    console.error('Init error:', error);
-    showStatus('Failed to initialize app', 'error');
-  }
-}
-
-/**
- * Show status message
- */
 function showStatus(message, type = 'info') {
-  statusLine.textContent = message;
-  statusLine.className = `status-line ${type}`;
+  if (!dom.status) return;
+  dom.status.textContent = message;
+  dom.status.className = `status-line ${type}`;
+  dom.status.classList.remove('hidden');
 }
 
-/**
- * Show setup section
- */
+function getShareUrl(code) {
+  const base = window.location.origin + window.location.pathname;
+  return `${base}?code=${encodeURIComponent(code)}`;
+}
+
+// ============================================================
+// Section visibility
+// ============================================================
+
+const allSections = [
+  dom.setup.section, dom.game.section, dom.join.section,
+  dom.pickSlot.section, dom.newRound.section,
+];
+
+function hideAllSections() { allSections.forEach(s => s && s.classList.add('hidden')); }
+
 function showSetupSection() {
-  setupSection.classList.remove('hidden');
-  gameSection.classList.add('hidden');
-  joinSection.classList.add('hidden');
-  playerSelectionSection.classList.add('hidden');
-  if (newRoundSection) newRoundSection.classList.add('hidden');
+  hideAllSections();
+  dom.setup.section.classList.remove('hidden');
   currentGame = null;
   currentGameCode = null;
   myPlayerNumber = null;
+  myToken = null;
   isHost = false;
+  currentRoundId = null;
   revealedPlayerIndices = new Set();
   lastKnownAssignments = null;
+  lastAllRevealed = false;
   stopPolling();
-  localStorage.removeItem('gameCode');
-  localStorage.removeItem('playerNumber');
-  selectPlayerCount(3);
-  selectImposterCount(1);
-  selectDifficulty('medium');
-  customInputActive = false;
-  customPlayersInput.classList.add('hidden');
-  numPlayersInput.value = '';
+  clearSession();
+  applyPrefsToSetupUI();
 }
 
-/**
- * Show game section
- */
-function showGameSection() {
-  setupSection.classList.add('hidden');
-  gameSection.classList.remove('hidden');
-  joinSection.classList.add('hidden');
-  playerSelectionSection.classList.add('hidden');
-  if (newRoundSection) newRoundSection.classList.add('hidden');
-  
-  gameCategoryDisplay.textContent = currentGame.category;
-  gamePlayersDisplay.textContent = currentGame.numPlayers;
-  
-  // Always show game code
-  if (currentGameCode && gameCodeDisplay && gameCodeValue) {
-    gameCodeValue.textContent = currentGameCode;
-    gameCodeDisplay.classList.remove('hidden');
+function showJoinSection(prefillCode = '') {
+  hideAllSections();
+  dom.join.section.classList.remove('hidden');
+  if (dom.join.code) {
+    dom.join.code.value = (prefillCode || '').toUpperCase();
+    dom.join.code.focus();
   }
-  
-  // Reveal All: only host (Player 1) can see this
-  const isPlayer1 = myPlayerNumber === 1;
-  if (revealAllBtn) revealAllBtn.style.display = isPlayer1 ? 'block' : 'none';
-  
-  // Reset: always visible as fallback
-  if (resetBtn) resetBtn.style.display = 'block';
-  
+}
+
+function showCreateSection() {
+  hideAllSections();
+  dom.setup.section.classList.remove('hidden');
+}
+
+function showGameSection() {
+  hideAllSections();
+  dom.game.section.classList.remove('hidden');
+  if (currentGame) {
+    dom.game.category.textContent = currentGame.category;
+    dom.game.players.textContent = currentGame.numPlayers;
+    if (dom.game.round) dom.game.round.textContent = `Round ${currentRoundId || 1}`;
+  }
+  if (currentGameCode && dom.game.code && dom.game.codeValue) {
+    dom.game.codeValue.textContent = currentGameCode;
+    dom.game.code.classList.remove('hidden');
+    if (dom.game.shareLink) dom.game.shareLink.value = getShareUrl(currentGameCode);
+  }
+  if (dom.game.revealAllBtn) dom.game.revealAllBtn.style.display = isHost ? 'block' : 'none';
+  if (dom.game.resetBtn) dom.game.resetBtn.style.display = isHost ? 'block' : 'none';
   renderPlayersList();
 }
 
-/**
- * Show join section
- */
-function showJoinSection() {
-  setupSection.classList.add('hidden');
-  joinSection.classList.remove('hidden');
-  gameCodeInput.value = '';
-  gameCodeInput.focus();
-}
+// ============================================================
+// Players list — split into host vs joined-player views
+// ============================================================
 
-/**
- * Show create section
- */
-function showCreateSection() {
-  joinSection.classList.add('hidden');
-  playerSelectionSection.classList.add('hidden');
-  setupSection.classList.remove('hidden');
-}
-
-/**
- * Render players list
- */
 function renderPlayersList() {
-  playersList.innerHTML = '';
-  
-  const isPlayer1 = myPlayerNumber === 1;
-  
-  // Non-host joined player view - show only their reveal button
-  if (!isPlayer1 && myPlayerNumber) {
-    const playerDiv = document.createElement('div');
-    playerDiv.className = 'player-item';
-    playerDiv.style.justifyContent = 'center';
-    
-    const playerLabel = document.createElement('span');
-    playerLabel.className = 'player-label';
-    playerLabel.textContent = `You are Player ${myPlayerNumber}`;
-    playerLabel.style.marginRight = '1rem';
-    
-    const revealBtn = document.createElement('button');
-    revealBtn.className = 'btn btn-reveal';
-    revealBtn.id = 'myRevealBtn';
-    revealBtn.textContent = 'Reveal My Role';
-    revealBtn.onclick = () => revealMyRole();
-    
-    playerDiv.appendChild(playerLabel);
-    playerDiv.appendChild(revealBtn);
-    playersList.appendChild(playerDiv);
-    return;
-  }
-  
-  // Host (Player 1) view - show all players
-  const playerAssignments = currentGame.playerAssignments || {};
-  
+  if (!dom.game.list || !currentGame) return;
+  dom.game.list.innerHTML = '';
+  if (!isHost && myPlayerNumber) renderJoinedPlayerView();
+  else renderHostPlayersList();
+}
+
+function renderJoinedPlayerView() {
+  const row = document.createElement('div');
+  row.className = 'player-item player-item--centered';
+
+  const label = document.createElement('span');
+  label.className = 'player-label';
+  label.textContent = `You are Player ${myPlayerNumber}`;
+
+  const btn = document.createElement('button');
+  btn.className = 'btn btn-reveal';
+  btn.id = 'myRevealBtn';
+  btn.textContent = revealedPlayerIndices.has(myPlayerNumber - 1)
+    ? 'Show My Role Again'
+    : 'Reveal My Role';
+  btn.onclick = () => revealPlayer(myPlayerNumber - 1);
+
+  row.appendChild(label);
+  row.appendChild(btn);
+  dom.game.list.appendChild(row);
+}
+
+function renderHostPlayersList() {
+  const assignments = currentGame.playerAssignments || {};
   for (let i = 0; i < currentGame.numPlayers; i++) {
-    const playerDiv = document.createElement('div');
-    playerDiv.className = 'player-item';
-    
-    const playerLabel = document.createElement('span');
     const playerNum = i + 1;
-    const isAssigned = playerAssignments[playerNum];
-    
-    // Mark Player 1 as "You (Host)"
-    if (playerNum === 1 && isPlayer1) {
-      playerLabel.textContent = 'Player 1 (You - Host)';
-      playerLabel.style.color = 'var(--accent-primary)';
+    const row = document.createElement('div');
+    row.className = 'player-item';
+
+    const label = document.createElement('span');
+    label.className = 'player-label';
+    if (playerNum === 1 && isHost) {
+      label.textContent = 'Player 1 (You — Host)';
+      label.style.color = 'var(--accent-primary)';
     } else {
-      playerLabel.textContent = `Player ${playerNum}`;
-      if (isAssigned) {
-        playerLabel.textContent += ' ✓';
-        playerLabel.style.color = 'var(--accent-insider)';
+      label.textContent = `Player ${playerNum}`;
+      if (assignments[playerNum]) {
+        label.textContent += ' ✓';
+        label.style.color = 'var(--accent-insider)';
       }
     }
-    playerLabel.className = 'player-label';
-    
-    const revealBtn = document.createElement('button');
-    revealBtn.className = 'btn btn-reveal';
-    revealBtn.dataset.playerIndex = i;
-    
-    if (revealedPlayerIndices.has(i)) {
-      revealBtn.disabled = true;
-      revealBtn.textContent = 'Revealed ✓';
-      revealBtn.classList.add('revealed');
+
+    const btn = document.createElement('button');
+    btn.className = 'btn btn-reveal';
+    btn.dataset.playerIndex = i;
+    const wasRevealed = revealedPlayerIndices.has(i);
+    if (wasRevealed) {
+      btn.textContent = 'Show again';
+      btn.classList.add('revealed');
     } else {
-      revealBtn.textContent = 'Reveal';
-      revealBtn.onclick = () => revealPlayer(i);
+      btn.textContent = 'Reveal';
     }
-    
-    playerDiv.appendChild(playerLabel);
-    playerDiv.appendChild(revealBtn);
-    playersList.appendChild(playerDiv);
+    btn.onclick = () => revealPlayer(i);
+
+    row.appendChild(label);
+    row.appendChild(btn);
+    dom.game.list.appendChild(row);
   }
 }
 
-/**
- * Select player count
- */
-function selectPlayerCount(count) {
-  selectedPlayers = count;
-  customInputActive = false;
-  
-  playerButtons.forEach(btn => {
-    const btnCount = btn.dataset.players ? parseInt(btn.dataset.players, 10) : null;
-    if (btnCount === count) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+// ============================================================
+// Stepper — number-of-players picker
+// ============================================================
+
+function setNumPlayers(n) {
+  const min = Number(dom.setup.numPlayers.min) || (appConfig?.minPlayers || 3);
+  const max = Number(dom.setup.numPlayers.max) || (appConfig?.maxPlayers || 12);
+  const clamped = Math.max(min, Math.min(max, n));
+  dom.setup.numPlayers.value = String(clamped);
+  selectedPlayers = clamped;
+  updatePref({ numPlayers: clamped });
+
+  // Update -/+ buttons disabled state
+  dom.setup.stepperBtns.forEach(btn => {
+    const step = parseInt(btn.dataset.step, 10);
+    const next = clamped + step;
+    btn.disabled = next < min || next > max;
   });
-  
-  if (count === null) {
-    customInputActive = true;
-    customPlayersInput.classList.remove('hidden');
-    numPlayersInput.focus();
+
+  // Show/hide impostor group based on count
+  if (clamped >= 4) {
+    dom.setup.impostersGroup.classList.remove('hidden');
+    updateImposterButtons(clamped);
   } else {
-    customPlayersInput.classList.add('hidden');
-    numPlayersInput.value = '';
-  }
-  
-  // Show/hide imposters group
-  if (count && count >= 4) {
-    impostersGroup.style.display = 'block';
-    updateImposterButtons(count);
-  } else {
-    impostersGroup.style.display = 'none';
+    dom.setup.impostersGroup.classList.add('hidden');
     selectedImposters = 1;
+    updatePref({ numImposters: 1 });
   }
 }
 
-/**
- * Select imposter count
- */
 function selectImposterCount(count) {
   selectedImposters = count;
-  
-  imposterButtons.forEach(btn => {
-    const btnCount = parseInt(btn.dataset.imposters, 10);
-    if (btnCount === count) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
+  dom.setup.imposterBtns.forEach(btn => {
+    const c = parseInt(btn.dataset.imposters, 10);
+    btn.classList.toggle('active', c === count);
   });
+  updatePref({ numImposters: count });
 }
 
-/**
- * Update imposter buttons based on player count
- */
 function updateImposterButtons(playerCount) {
-  const maxImposters = Math.floor((playerCount - 1) / 2);
-  
-  imposterButtons.forEach(btn => {
-    const imposterCount = parseInt(btn.dataset.imposters, 10);
-    if (imposterCount <= maxImposters) {
-      btn.style.display = 'flex';
-    } else {
-      btn.style.display = 'none';
-    }
+  const max = Math.max(1, Math.floor((playerCount - 1) / 2));
+  dom.setup.imposterBtns.forEach(btn => {
+    const c = parseInt(btn.dataset.imposters, 10);
+    btn.style.display = c <= max ? 'flex' : 'none';
   });
-  
-  if (selectedImposters > maxImposters) {
-    selectImposterCount(1);
+  if (selectedImposters > max) selectImposterCount(1);
+  else selectImposterCount(selectedImposters);
+}
+
+// ============================================================
+// Difficulty (data-hint driven; no const map in JS)
+// ============================================================
+
+function getDifficultyHint(btnList, level) {
+  for (const btn of btnList) {
+    if (btn.dataset.difficulty === level && btn.dataset.hint) return btn.dataset.hint;
+  }
+  return '';
+}
+
+function selectDifficulty(level) {
+  selectedDifficulty = level;
+  dom.setup.difficultyBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.difficulty === level));
+  if (dom.setup.difficultyHint) {
+    dom.setup.difficultyHint.textContent = getDifficultyHint(dom.setup.difficultyBtns, level);
+  }
+  updatePref({ difficulty: level });
+}
+function selectNewRoundDifficulty(level) {
+  newRoundDifficulty = level;
+  dom.newRound.difficultyBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.difficulty === level));
+  if (dom.newRound.difficultyHint) {
+    dom.newRound.difficultyHint.textContent = getDifficultyHint(dom.newRound.difficultyBtns, level);
   }
 }
 
-/**
- * Create a new game
- */
+// ============================================================
+// Apply persisted prefs to UI
+// ============================================================
+
+function applyPrefsToSetupUI() {
+  const p = loadPrefs();
+  if (dom.setup.category && p.lastCategory) dom.setup.category.value = p.lastCategory;
+  setNumPlayers(p.numPlayers || 3);
+  selectImposterCount(p.numImposters || 1);
+  selectDifficulty(p.difficulty || 'medium');
+  if (dom.setup.everyoneGetsWordToggle) dom.setup.everyoneGetsWordToggle.checked = !!p.everyoneGetsWord;
+  if (dom.setup.imposterGetsHintToggle) dom.setup.imposterGetsHintToggle.checked = !!p.imposterGetsHint;
+  if (dom.setup.chaosModeToggle) dom.setup.chaosModeToggle.checked = !!p.chaosModeEnabled;
+  handleEveryoneGetsWordToggle();
+}
+
+// ============================================================
+// Settings handlers
+// ============================================================
+
+function toggleSettings() {
+  const hidden = dom.setup.settingsContent.classList.contains('hidden');
+  dom.setup.settingsContent.classList.toggle('hidden', !hidden);
+  dom.setup.settingsToggle.classList.toggle('open', hidden);
+}
+
+function handleEveryoneGetsWordToggle() {
+  const checked = dom.setup.everyoneGetsWordToggle.checked;
+  dom.setup.imposterGetsHintToggle.disabled = checked;
+  if (checked) dom.setup.imposterGetsHintToggle.checked = false;
+  const item = dom.setup.imposterGetsHintToggle.closest('.setting-item');
+  if (item) item.classList.toggle('disabled', checked);
+  updatePref({
+    everyoneGetsWord: checked,
+    imposterGetsHint: !!dom.setup.imposterGetsHintToggle.checked,
+  });
+}
+
+// ============================================================
+// Game creation / joining
+// ============================================================
+
 async function createGame() {
-  const category = categoryInput.value.trim();
-  
-  let numPlayers;
-  if (customInputActive) {
-    numPlayers = parseInt(numPlayersInput.value, 10);
-    if (isNaN(numPlayers) || numPlayers < 3 || numPlayers > 20) {
-      showStatus('Please enter a valid number of players (3-20)', 'error');
-      return;
-    }
-  } else {
-    numPlayers = selectedPlayers;
-  }
-  
-  if (!category) {
-    showStatus('Please enter a category', 'error');
+  const category = (dom.setup.category.value || '').trim();
+  const numPlayers = parseInt(dom.setup.numPlayers.value, 10);
+  if (!category) { showStatus('Please enter a category', 'error'); return; }
+  if (isNaN(numPlayers) || numPlayers < (appConfig?.minPlayers || 3) || numPlayers > (appConfig?.maxPlayers || 12)) {
+    showStatus(`Please pick a valid number of players (${appConfig?.minPlayers || 3}-${appConfig?.maxPlayers || 12})`, 'error');
     return;
   }
-  
+
+  updatePref({ lastCategory: category });
+
   try {
     showStatus('Generating word...', 'loading');
-    createGameBtn.disabled = true;
-    
-    const everyoneGetsWord = everyoneGetsWordToggle.checked;
-    const imposterGetsHint = imposterGetsHintToggle.checked;
-    const numImposters = numPlayers >= 4 ? selectedImposters : 1;
-    
-    const response = await fetch('/api/new-game', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        category, 
-        numPlayers,
-        numImposters,
-        everyoneGetsWord,
-        imposterGetsHint,
-        difficulty: selectedDifficulty,
-        usedWords: getUsedWords()
-      })
+    dom.setup.createBtn.disabled = true;
+    const body = {
+      category,
+      numPlayers,
+      numImposters: numPlayers >= 4 ? selectedImposters : 1,
+      everyoneGetsWord: !!dom.setup.everyoneGetsWordToggle.checked,
+      imposterGetsHint: !!dom.setup.imposterGetsHintToggle.checked,
+      chaosModeEnabled: !!(dom.setup.chaosModeToggle && dom.setup.chaosModeToggle.checked),
+      difficulty: selectedDifficulty,
+      usedWords: getUsedWords(),
+    };
+    const r = await fetch('/api/new-game', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
     });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to create game');
-    }
-    
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed to create game');
+
     currentGameCode = data.gameCode;
     myPlayerNumber = 1;
+    myToken = data.hostToken;
     isHost = true;
-    
+    currentRoundId = data.roundId;
     currentGame = {
       category: data.category,
       numPlayers: data.numPlayers,
-      revealedCount: 0,
-      playerAssignments: { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } }
+      numImposters: data.numImposters,
+      playerAssignments: { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } },
     };
-    
-    localStorage.setItem('gameCode', currentGameCode);
-    localStorage.setItem('playerNumber', '1');
-    
+    saveSession({ gameCode: currentGameCode, playerNumber: 1, token: myToken, isHost: true, roundId: currentRoundId });
+
     showStatus(`Game created! Code: ${currentGameCode}`, 'success');
     startPolling();
     showGameSection();
-    
-  } catch (error) {
-    console.error('Create game error:', error);
-    showStatus(error.message || 'Failed to create game', 'error');
+  } catch (e) {
+    console.error('Create error:', e);
+    showStatus(e.message || 'Failed to create game', 'error');
   } finally {
-    createGameBtn.disabled = false;
+    dom.setup.createBtn.disabled = false;
   }
 }
 
-/**
- * Join a game
- */
 async function joinGame() {
-  const code = gameCodeInput.value.trim().toUpperCase();
-  
+  const code = (dom.join.code.value || '').trim().toUpperCase();
   if (code.length !== 6) {
     showStatus('Please enter a valid 6-character game code', 'error');
     return;
   }
-  
   try {
-    showStatus('Joining game...', 'loading');
-    
-    const response = await fetch(`/api/game/${code}`);
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Game not found');
-    }
-    
+    showStatus('Looking up game...', 'loading');
+    // Consolidated lookup via /api/status (no /api/game/:code anymore).
+    const r = await fetch(`/api/status?gameCode=${encodeURIComponent(code)}`);
+    const data = await r.json();
+    if (!r.ok || !data.active) throw new Error('Game not found');
+
+    currentGameCode = code;
+    isHost = false;
     currentGame = {
       category: data.category,
       numPlayers: data.numPlayers,
-      playerAssignments: data.playerAssignments || {}
+      playerAssignments: data.playerAssignments || {},
     };
-    
-    currentGameCode = code;
-    isHost = false;
-    
+    currentRoundId = data.roundId || 1;
     showPlayerSelectionSection();
-    
-  } catch (error) {
-    console.error('Join error:', error);
-    showStatus(error.message || 'Failed to join game', 'error');
+  } catch (e) {
+    console.error('Join lookup error:', e);
+    showStatus(e.message || 'Failed to join game', 'error');
   }
 }
 
-/**
- * Show player selection section
- */
 function showPlayerSelectionSection() {
-  joinSection.classList.add('hidden');
-  playerSelectionSection.classList.remove('hidden');
-  
-  playerSelectionInfo.textContent = `Category: ${currentGame.category} | Players: ${currentGame.numPlayers}`;
-  
-  playerSelectionButtons.innerHTML = '';
+  hideAllSections();
+  dom.pickSlot.section.classList.remove('hidden');
+  dom.pickSlot.info.textContent = `Category: ${currentGame.category} | Players: ${currentGame.numPlayers}`;
+  dom.pickSlot.buttons.innerHTML = '';
   for (let i = 1; i <= currentGame.numPlayers; i++) {
     const btn = document.createElement('button');
     btn.className = 'player-btn';
     btn.textContent = `Player ${i}`;
     btn.dataset.playerNumber = i;
-    
-    // Player 1 is always the host
     if (i === 1) {
       btn.disabled = true;
       btn.textContent = 'Player 1 (Host)';
@@ -527,192 +538,114 @@ function showPlayerSelectionSection() {
       btn.textContent += ' (Taken)';
       btn.classList.add('revealed');
     }
-    
     btn.onclick = () => selectMyPlayerNumber(i);
-    playerSelectionButtons.appendChild(btn);
+    dom.pickSlot.buttons.appendChild(btn);
   }
-  
-  confirmPlayerBtn.style.display = 'none';
+  dom.pickSlot.confirmBtn.classList.add('hidden');
 }
 
-/**
- * Select my player number
- */
 function selectMyPlayerNumber(playerNumber) {
-  playerSelectionButtons.querySelectorAll('.player-btn').forEach(btn => {
-    const btnNum = parseInt(btn.dataset.playerNumber, 10);
-    if (btnNum === playerNumber && !btn.disabled) {
+  dom.pickSlot.buttons.querySelectorAll('.player-btn').forEach(btn => {
+    const n = parseInt(btn.dataset.playerNumber, 10);
+    if (n === playerNumber && !btn.disabled) {
       btn.classList.add('active');
       myPlayerNumber = playerNumber;
-      confirmPlayerBtn.style.display = 'block';
+      dom.pickSlot.confirmBtn.classList.remove('hidden');
     } else {
       btn.classList.remove('active');
     }
   });
 }
 
-/**
- * Confirm player join
- */
 async function confirmPlayerJoin() {
   if (!myPlayerNumber || !currentGameCode) {
     showStatus('Please select a player number', 'error');
     return;
   }
-  
   try {
     showStatus('Joining...', 'loading');
-    
-    const response = await fetch(`/api/game/${currentGameCode}/join`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ playerNumber: myPlayerNumber })
+    const r = await fetch(`/api/game/${encodeURIComponent(currentGameCode)}/join`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerNumber: myPlayerNumber }),
     });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to join');
-    }
-    
-    showStatus('Joined successfully!', 'success');
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed to join');
+
+    myToken = data.playerToken;
+    currentRoundId = data.roundId || currentRoundId || 1;
     isHost = false;
-    // Store in localStorage for persistence
-    if (currentGameCode) {
-      localStorage.setItem('gameCode', currentGameCode);
-      localStorage.setItem('playerNumber', myPlayerNumber.toString());
-    }
+    saveSession({ gameCode: currentGameCode, playerNumber: myPlayerNumber, token: myToken, isHost: false, roundId: currentRoundId });
+
+    showStatus('Joined successfully!', 'success');
     startPolling();
     showGameSection();
-    
-  } catch (error) {
-    console.error('Confirm join error:', error);
-    showStatus(error.message || 'Failed to join', 'error');
+  } catch (e) {
+    console.error('Join confirm error:', e);
+    showStatus(e.message || 'Failed to join', 'error');
   }
 }
 
-/**
- * Reveal player role (host clicking for individual player)
- */
+// ============================================================
+// Reveal
+// ============================================================
+
 async function revealPlayer(playerIndex) {
   try {
-    const response = await fetch('/api/reveal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        playerIndex,
-        gameCode: currentGameCode
-      })
+    const r = await fetch('/api/reveal', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerIndex, gameCode: currentGameCode, token: myToken }),
     });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
+    const data = await r.json();
+    if (!r.ok) {
+      if (r.status === 403 || r.status === 404) {
+        showStatus(data.error || 'Session expired — please rejoin', 'error');
+        clearSession();
+        showSetupSection();
+        return;
+      }
       showStatus(data.error || 'Failed to reveal', 'error');
       return;
     }
-    
     showRevealModal(data);
     revealedPlayerIndices.add(playerIndex);
-    
-    const btn = playersList.querySelector(`[data-player-index="${playerIndex}"]`);
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Revealed ✓';
-      btn.classList.add('revealed');
-    }
-    
-  } catch (error) {
-    console.error('Reveal error:', error);
+    renderPlayersList();
+  } catch (e) {
+    console.error('Reveal error:', e);
     showStatus('Failed to reveal', 'error');
   }
 }
 
-/**
- * Reveal my role (joined player)
- */
-async function revealMyRole() {
-  if (!myPlayerNumber) {
-    showStatus('Player number not set', 'error');
-    return;
-  }
-  
-  try {
-    const response = await fetch('/api/reveal', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
-        playerIndex: myPlayerNumber - 1,
-        gameCode: currentGameCode
-      })
-    });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      showStatus(data.error || 'Failed to reveal', 'error');
-      return;
-    }
-    
-    showRevealModal(data);
-    
-    // Update the reveal button
-    const btn = document.getElementById('myRevealBtn') || playersList.querySelector('.btn-reveal');
-    if (btn) {
-      btn.disabled = true;
-      btn.textContent = 'Revealed';
-      btn.classList.add('revealed');
-    }
-    
-  } catch (error) {
-    console.error('Reveal error:', error);
-    showStatus('Failed to reveal', 'error');
-  }
-}
-
-/**
- * Show reveal modal
- */
 function showRevealModal(data) {
   if (countdownInterval) {
     clearInterval(countdownInterval);
     countdownInterval = null;
   }
-  
-  modalPlayerTitle.textContent = `Player ${data.playerIndex + 1}`;
-  
-  // Display role (only if not in everyoneGetsWord mode)
+
+  dom.revealModal.title.textContent = `Player ${data.playerIndex + 1}`;
   if (data.role) {
-    modalRole.textContent = data.role;
-    modalRole.className = `role-display ${data.role.toLowerCase()}`;
-    modalRole.style.display = 'block';
+    dom.revealModal.role.textContent = data.role;
+    dom.revealModal.role.className = `role-display ${data.role.toLowerCase()}`;
+    dom.revealModal.role.style.display = 'block';
   } else {
-    // In everyoneGetsWord mode, hide the role display
-    modalRole.textContent = '';
-    modalRole.className = 'role-display';
-    modalRole.style.display = 'none';
+    dom.revealModal.role.textContent = '';
+    dom.revealModal.role.className = 'role-display';
+    dom.revealModal.role.style.display = 'none';
   }
-  
-  // Display word
+
   if (data.word) {
-    modalWord.innerHTML = `
+    dom.revealModal.word.innerHTML = `
       <div class="word-label">Your word is:</div>
       <div class="word-text">${escapeHtml(data.word)}</div>
     `;
-    modalWord.className = 'word-display has-word';
-  } else if (data.chaosMode) {
-    modalWord.innerHTML = '<span class="no-word-text">🎭 No word - Chaos Mode! 🎭</span>';
-    modalWord.className = 'word-display no-word';
+    dom.revealModal.word.className = 'word-display has-word';
   } else {
-    // Impostor with no word (not in everyoneGetsWord mode)
-    modalWord.innerHTML = '<span class="no-word-text">You do not get a word.<br>Try to blend in!</span>';
-    modalWord.className = 'word-display no-word';
+    dom.revealModal.word.innerHTML =
+      '<span class="no-word-text">You do not get a word.<br>Try to blend in!</span>';
+    dom.revealModal.word.className = 'word-display no-word';
   }
-  
-  // Display hint (if provided)
+
   const existingHint = document.querySelector('.hint-display');
   if (existingHint) existingHint.remove();
-  
   if (data.hint) {
     const hintDiv = document.createElement('div');
     hintDiv.className = 'hint-display';
@@ -720,164 +653,110 @@ function showRevealModal(data) {
       <div class="hint-label">Hint:</div>
       <div class="hint-text">${escapeHtml(data.hint)}</div>
     `;
-    modalWord.after(hintDiv);
+    dom.revealModal.word.after(hintDiv);
   }
-  
+
   if (data.word) addUsedWord(data.word);
 
-  revealModal.classList.remove('hidden');
-  revealModal.classList.add('show');
-  
-  // Auto-hide countdown
-  let countdown = 10;
-  modalCountdown.textContent = `Auto-hiding in ${countdown}s`;
-  
+  dom.revealModal.root.classList.remove('hidden');
+  dom.revealModal.root.classList.add('show');
+
+  let countdown = appConfig?.revealAutoHideSeconds || 10;
+  dom.revealModal.countdown.textContent = `Auto-hiding in ${countdown}s`;
   countdownInterval = setInterval(() => {
     countdown--;
-    if (countdown > 0) {
-      modalCountdown.textContent = `Auto-hiding in ${countdown}s`;
-    } else {
-      hideRevealModal();
-    }
+    if (countdown > 0) dom.revealModal.countdown.textContent = `Auto-hiding in ${countdown}s`;
+    else hideRevealModal();
   }, 1000);
 }
 
-/**
- * Hide reveal modal
- */
 function hideRevealModal() {
   if (countdownInterval) {
     clearInterval(countdownInterval);
     countdownInterval = null;
   }
-  
-  // Remove hint if it was added
   const existingHint = document.querySelector('.hint-display');
   if (existingHint) existingHint.remove();
-  
-  revealModal.classList.remove('show');
-  revealModal.classList.add('hidden');
+  dom.revealModal.root.classList.remove('show');
+  dom.revealModal.root.classList.add('hidden');
 }
 
-/**
- * Reset game
- */
+// ============================================================
+// Reset / Reveal-all
+// ============================================================
+
 async function resetGame() {
-  if (!confirm('Are you sure you want to reset the game? This will end the current game for all players.')) {
-    return;
-  }
-  
+  if (!confirm('Reset the game? This ends the round for everyone.')) return;
   stopPolling();
-  
-  // Save game code before clearing state
-  const gameCodeToReset = currentGameCode;
-  
-  // Always clear local state first (so user can get unstuck even if server fails)
-  localStorage.removeItem('gameCode');
-  localStorage.removeItem('playerNumber');
+  const gc = currentGameCode;
+  const tok = myToken;
+  clearSession();
   currentGameCode = null;
   myPlayerNumber = null;
+  myToken = null;
   isHost = false;
-  
   try {
-    // Try to reset on server, but don't block if it fails
     await fetch('/api/reset', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameCode: gameCodeToReset })
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gameCode: gc, token: tok }),
     });
-    
-    showStatus('Game reset successfully', 'success');
-  } catch (error) {
-    console.error('Reset error:', error);
-    // Still show success since we cleared local state
-    showStatus('Game reset (local state cleared)', 'success');
+    showStatus('Game reset', 'success');
+  } catch (e) {
+    console.error('Reset error:', e);
+    showStatus('Game reset (local only)', 'success');
   }
-  
   showSetupSection();
 }
 
-/**
- * Reveal all (host only)
- */
 async function revealAll() {
-  if (!currentGame) {
-    showStatus('No active game', 'error');
-    return;
-  }
-
-  if (!confirm('Reveal all roles and words? This will end the current game.')) {
-    return;
-  }
-  
+  if (!currentGame) { showStatus('No active game', 'error'); return; }
+  if (!confirm('Reveal all roles? This ends the current round.')) return;
   try {
     showStatus('Revealing...', 'loading');
-    
-    const response = await fetch('/api/reveal-all', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ gameCode: currentGameCode })
+    const r = await fetch('/api/reveal-all', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ gameCode: currentGameCode, token: myToken }),
     });
-    
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to reveal all');
-    }
-
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed');
     displayRevealAllModal(data);
-    showStatus('All roles revealed!', 'success');
-    
-  } catch (error) {
-    console.error('Reveal all error:', error);
-    showStatus(error.message || 'Failed to reveal all', 'error');
+    showStatus('All roles revealed', 'success');
+  } catch (e) {
+    console.error('Reveal-all error:', e);
+    showStatus(e.message || 'Failed to reveal all', 'error');
   }
 }
 
-/**
- * Display reveal all modal
- */
 function displayRevealAllModal(data) {
   const { results, chaosMode, category } = data;
-  
-  if (!revealAllContent) {
-    console.error('revealAllContent element not found');
-    return;
-  }
-  
-  revealAllContent.innerHTML = '';
-  
-  // Show category at the top
+  if (!dom.revealAllModal.content) return;
+  dom.revealAllModal.content.innerHTML = '';
+
   if (category) {
-    const categoryDiv = document.createElement('div');
-    categoryDiv.style.cssText = 'text-align: center; margin-bottom: 1rem; color: var(--text-secondary);';
-    categoryDiv.innerHTML = `<strong>Category:</strong> ${escapeHtml(category)}`;
-    revealAllContent.appendChild(categoryDiv);
+    const div = document.createElement('div');
+    div.className = 'reveal-all-category';
+    div.innerHTML = `<strong>Category:</strong> ${escapeHtml(category)}`;
+    dom.revealAllModal.content.appendChild(div);
   }
-  
+
   if (chaosMode) {
-    const chaosMsg = document.createElement('div');
-    chaosMsg.className = 'reveal-all-item';
-    chaosMsg.innerHTML = `
-      <div style="text-align: center; padding: 1rem;">
-        <h3 style="color: #ef4444; margin: 0;">🎭 CHAOS MODE! 🎭</h3>
-        <p style="margin-top: 0.5rem;">Everyone was an impostor!</p>
-      </div>
-    `;
-    revealAllContent.appendChild(chaosMsg);
+    const m = document.createElement('div');
+    m.className = 'reveal-all-item reveal-all-chaos';
+    m.innerHTML = `
+      <h3>🎭 CHAOS MODE! 🎭</h3>
+      <p>Everyone was an impostor!</p>`;
+    dom.revealAllModal.content.appendChild(m);
   }
-  
+
   if (results && results.length) {
     results.forEach(result => {
-      if (result.word && result.word !== 'N/A' && !result.word.includes('Chaos Mode')) {
+      if (result.word && result.word !== 'N/A' && !String(result.word).includes('Chaos Mode')) {
         addUsedWord(result.word);
       }
-      const resultItem = document.createElement('div');
-      resultItem.className = 'reveal-all-item';
-      
+      const item = document.createElement('div');
+      item.className = 'reveal-all-item';
       const roleClass = result.role === 'Impostor' ? 'impostor' : 'insider';
-      
-      resultItem.innerHTML = `
+      item.innerHTML = `
         <div class="reveal-all-item-header">
           <span class="reveal-all-player-name">Player ${result.playerNumber}</span>
           <span class="reveal-all-role ${roleClass}">${escapeHtml(result.role)}</span>
@@ -885,87 +764,38 @@ function displayRevealAllModal(data) {
         <div class="reveal-all-word">Word: ${escapeHtml(result.word) || 'N/A'}</div>
         ${result.hint ? `<div class="reveal-all-hint">Hint: ${escapeHtml(result.hint)}</div>` : ''}
       `;
-      
-      revealAllContent.appendChild(resultItem);
+      dom.revealAllModal.content.appendChild(item);
     });
-  } else {
-    const noResults = document.createElement('div');
-    noResults.style.cssText = 'text-align: center; color: var(--text-secondary);';
-    noResults.textContent = 'No player results available.';
-    revealAllContent.appendChild(noResults);
   }
-  
-  // Only show "Start New Round" button for Player 1 (host)
-  if (revealAllHostButtons) {
-    if (myPlayerNumber === 1) {
-      revealAllHostButtons.style.display = 'block';
-    } else {
-      revealAllHostButtons.style.display = 'none';
-    }
+
+  if (dom.revealAllModal.hostButtons) {
+    dom.revealAllModal.hostButtons.style.display = isHost ? 'block' : 'none';
   }
-  
-  if (revealAllModal) {
-    revealAllModal.classList.remove('hidden');
-    revealAllModal.classList.add('show');
-    console.log('Reveal all modal displayed, myPlayerNumber:', myPlayerNumber);
-  } else {
-    console.error('revealAllModal element not found');
-  }
+  dom.revealAllModal.root.classList.remove('hidden');
+  dom.revealAllModal.root.classList.add('show');
 }
 
-/**
- * Close reveal all modal
- */
 function closeRevealAllModal() {
-  if (revealAllModal) {
-    revealAllModal.classList.remove('show');
-    revealAllModal.classList.add('hidden');
-  }
+  dom.revealAllModal.root.classList.remove('show');
+  dom.revealAllModal.root.classList.add('hidden');
 }
 
-/**
- * Show new round setup UI (for host/Player 1)
- */
+// ============================================================
+// New round (host)
+// ============================================================
+
 function showNewRoundSetup() {
-  if (!currentGameCode) {
-    showStatus('No game code found', 'error');
-    return;
-  }
-  
+  if (!currentGameCode) { showStatus('No game code', 'error'); return; }
   closeRevealAllModal();
-  
-  // Hide other sections
-  setupSection.classList.add('hidden');
-  gameSection.classList.add('hidden');
-  joinSection.classList.add('hidden');
-  playerSelectionSection.classList.add('hidden');
-  
-  // Show new round section
-  if (newRoundSection) {
-    newRoundSection.classList.remove('hidden');
-  }
-  
-  // Set the game code display
-  if (newRoundCodeValue) {
-    newRoundCodeValue.textContent = currentGameCode;
-  }
-  
-  if (sameCategoryName && currentGame) {
-    sameCategoryName.textContent = currentGame.category;
-  }
-  
-  if (newRoundCategoryInput) {
-    newRoundCategoryInput.value = '';
-  }
-  
+  hideAllSections();
+  dom.newRound.section.classList.remove('hidden');
+  if (dom.newRound.codeValue) dom.newRound.codeValue.textContent = currentGameCode;
+  if (dom.newRound.sameCategoryName && currentGame) dom.newRound.sameCategoryName.textContent = currentGame.category;
+  if (dom.newRound.categoryInput) dom.newRound.categoryInput.value = '';
   selectNewRoundDifficulty('medium');
-  
   showStatus('Pick same category or enter a new one', 'info');
 }
 
-/**
- * Start new round with same category
- */
 function startNewRoundSameCategory() {
   if (!currentGame || !currentGame.category) {
     showStatus('No category found', 'error');
@@ -974,234 +804,128 @@ function startNewRoundSameCategory() {
   startNewRound(currentGame.category);
 }
 
-/**
- * Start new round with same code and specified or new category
- */
 async function startNewRound(overrideCategory) {
-  if (!currentGameCode) {
-    showStatus('No game code found', 'error');
-    return;
-  }
-  
-  const category = overrideCategory || (newRoundCategoryInput ? newRoundCategoryInput.value.trim() : '');
-  
+  if (!currentGameCode) { showStatus('No game code', 'error'); return; }
+  const category = overrideCategory || (dom.newRound.categoryInput ? dom.newRound.categoryInput.value.trim() : '');
   if (!category || category.length < 2) {
     showStatus('Please enter a valid category (at least 2 characters)', 'error');
     return;
   }
-
   try {
     showStatus('Creating new round...', 'loading');
-    if (startNewRoundBtn) startNewRoundBtn.disabled = true;
-    if (sameCategoryBtn) sameCategoryBtn.disabled = true;
-    
-    const response = await fetch('/api/new-game-same-code', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ 
+    if (dom.newRound.startBtn) dom.newRound.startBtn.disabled = true;
+    if (dom.newRound.sameCategoryBtn) dom.newRound.sameCategoryBtn.disabled = true;
+
+    const r = await fetch('/api/new-game-same-code', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
         gameCode: currentGameCode,
-        category: category,
+        token: myToken,
+        category,
         difficulty: newRoundDifficulty,
-        usedWords: getUsedWords()
-      })
+        usedWords: getUsedWords(),
+      }),
     });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || 'Failed');
 
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || 'Failed to create new round');
-    }
-
-    currentGame = {
-      category: data.category,
-      numPlayers: data.numPlayers,
-      revealedCount: 0,
-      playerAssignments: { 1: { name: 'Host (Player 1)', joinedAt: new Date().toISOString() } }
-    };
-
-    myPlayerNumber = 1;
-    isHost = true;
+    currentGame.category = data.category;
+    currentGame.numPlayers = data.numPlayers;
+    currentRoundId = data.roundId;
     revealedPlayerIndices = new Set();
     lastKnownAssignments = null;
-    
-    showStatus('New round started!', 'success');
+    lastAllRevealed = false;
+    saveSession({ gameCode: currentGameCode, playerNumber: 1, token: myToken, isHost: true, roundId: currentRoundId });
+
+    showStatus(`New round ${currentRoundId} started!`, 'success');
     showGameSection();
-    
-  } catch (error) {
-    console.error('New round error:', error);
-    showStatus(error.message || 'Failed to create new round', 'error');
+  } catch (e) {
+    console.error('New round error:', e);
+    showStatus(e.message || 'Failed to create new round', 'error');
   } finally {
-    if (startNewRoundBtn) startNewRoundBtn.disabled = false;
-    if (sameCategoryBtn) sameCategoryBtn.disabled = false;
+    if (dom.newRound.startBtn) dom.newRound.startBtn.disabled = false;
+    if (dom.newRound.sameCategoryBtn) dom.newRound.sameCategoryBtn.disabled = false;
   }
 }
 
-/**
- * Difficulty descriptions for hint text
- */
-const difficultyDescriptions = {
-  easy: 'Well-known, mainstream items everyone would recognize',
-  medium: 'A balanced mix of common and moderately known items',
-  hard: 'Lesser-known, surprising items beyond the obvious picks'
-};
+// ============================================================
+// Polling
+// ============================================================
 
-/**
- * Select difficulty level (setup screen)
- */
-function selectDifficulty(level) {
-  selectedDifficulty = level;
-  difficultyButtons.forEach(btn => {
-    if (btn.dataset.difficulty === level) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
-  });
-  if (difficultyHint) {
-    difficultyHint.textContent = difficultyDescriptions[level] || difficultyDescriptions.medium;
-  }
-}
-
-/**
- * Select difficulty level (new round screen)
- */
-function selectNewRoundDifficulty(level) {
-  newRoundDifficulty = level;
-  newRoundDifficultyButtons.forEach(btn => {
-    if (btn.dataset.difficulty === level) {
-      btn.classList.add('active');
-    } else {
-      btn.classList.remove('active');
-    }
-  });
-  if (newRoundDifficultyHint) {
-    newRoundDifficultyHint.textContent = difficultyDescriptions[level] || difficultyDescriptions.medium;
-  }
-}
-
-/**
- * Toggle settings section
- */
-function toggleSettings() {
-  const isHidden = settingsContent.classList.contains('hidden');
-  if (isHidden) {
-    settingsContent.classList.remove('hidden');
-    settingsToggle.classList.add('open');
-  } else {
-    settingsContent.classList.add('hidden');
-    settingsToggle.classList.remove('open');
-  }
-}
-
-/**
- * Handle everyone gets word toggle
- */
-function handleEveryoneGetsWordToggle() {
-  const isChecked = everyoneGetsWordToggle.checked;
-  
-  if (isChecked) {
-    imposterGetsHintToggle.disabled = true;
-    imposterGetsHintToggle.checked = false;
-    const hintSettingItem = imposterGetsHintToggle.closest('.setting-item');
-    if (hintSettingItem) {
-      hintSettingItem.classList.add('disabled');
-    }
-  } else {
-    imposterGetsHintToggle.disabled = false;
-    const hintSettingItem = imposterGetsHintToggle.closest('.setting-item');
-    if (hintSettingItem) {
-      hintSettingItem.classList.remove('disabled');
-    }
-  }
-}
-
-/**
- * Start polling for game updates (all players with game code)
- */
 function startPolling() {
-  if (pollingInterval) {
-    clearInterval(pollingInterval);
-  }
-  
-  let lastAllRevealed = false;
-  
-  pollingInterval = setInterval(async () => {
-    if (!currentGameCode) return;
-    
-    try {
-      const response = await fetch(`/api/status?gameCode=${currentGameCode}`);
-      const status = await response.json();
-      
-      if (!status.active) {
-        stopPolling();
-        showStatus('Game has ended', 'info');
-        return;
-      }
-      
-      const isPlayer1 = myPlayerNumber === 1;
-      
-      // Check if game revealed all (for non-host players)
-      if (status.allRevealed && !lastAllRevealed && !isPlayer1) {
-        lastAllRevealed = true;
-        // Fetch and show results for players
-        const revealResponse = await fetch('/api/reveal-all', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ gameCode: currentGameCode })
-        });
-        
-        if (revealResponse.ok) {
-          const revealData = await revealResponse.json();
-          displayRevealAllModal(revealData);
-          showStatus('Host revealed all roles!', 'info');
-        }
-        return;
-      }
-      
-      if (isPlayer1 && status.playerAssignments) {
-        const newAssignmentsJson = JSON.stringify(status.playerAssignments);
-        if (newAssignmentsJson !== lastKnownAssignments) {
-          lastKnownAssignments = newAssignmentsJson;
-          currentGame.playerAssignments = status.playerAssignments;
-          renderPlayersList();
-        }
-      }
-      
-      // Check for new game (category changed) - for all players
-      if (currentGame && status.category !== currentGame.category) {
-        currentGame.category = status.category;
-        currentGame.numPlayers = status.numPlayers;
-        gameCategoryDisplay.textContent = status.category;
-        gamePlayersDisplay.textContent = status.numPlayers;
-        
-        lastAllRevealed = false;
-        revealedPlayerIndices = new Set();
-        lastKnownAssignments = null;
-        closeRevealAllModal();
-        
-        // Reset the reveal button for non-host players
-        if (!isPlayer1) {
-          const btn = playersList.querySelector('#myRevealBtn');
-          if (btn) {
-            btn.disabled = false;
-            btn.textContent = 'Reveal My Role';
-            btn.classList.remove('revealed');
-          }
-        }
-        
-        showStatus('New round started!', 'success');
-        showGameSection();
-      }
-      
-    } catch (error) {
-      console.error('Polling error:', error);
-    }
-  }, 2000);
+  if (pollingInterval) clearInterval(pollingInterval);
+  pollingInterval = setInterval(pollOnce, 2000);
+  pollOnce();
 }
 
-/**
- * Stop polling
- */
+async function pollOnce() {
+  if (!currentGameCode) return;
+  try {
+    const r = await fetch(`/api/status?gameCode=${encodeURIComponent(currentGameCode)}`);
+    const status = await r.json();
+    if (!status.active) {
+      stopPolling();
+      showStatus('Game has ended', 'info');
+      clearSession();
+      showSetupSection();
+      return;
+    }
+
+    // New-round detection via roundId (works even when category is unchanged)
+    if (currentRoundId !== null && status.roundId !== currentRoundId) {
+      currentRoundId = status.roundId;
+      currentGame.category = status.category;
+      currentGame.numPlayers = status.numPlayers;
+      if (dom.game.category) dom.game.category.textContent = status.category;
+      if (dom.game.players) dom.game.players.textContent = status.numPlayers;
+      if (dom.game.round) dom.game.round.textContent = `Round ${currentRoundId}`;
+      revealedPlayerIndices = new Set();
+      lastAllRevealed = false;
+      closeRevealAllModal();
+      hideRevealModal();
+      saveSession({ gameCode: currentGameCode, playerNumber: myPlayerNumber, token: myToken, isHost, roundId: currentRoundId });
+      showStatus(`New round ${currentRoundId} started!`, 'success');
+      showGameSection();
+      return;
+    }
+    if (currentRoundId === null) currentRoundId = status.roundId;
+
+    if (isHost && status.playerAssignments) {
+      const json = JSON.stringify(status.playerAssignments);
+      if (json !== lastKnownAssignments) {
+        lastKnownAssignments = json;
+        currentGame.playerAssignments = status.playerAssignments;
+        renderPlayersList();
+      }
+    }
+
+    if (Array.isArray(status.revealedFlags)) {
+      let changed = false;
+      for (let i = 0; i < status.revealedFlags.length; i++) {
+        if (status.revealedFlags[i] && !revealedPlayerIndices.has(i)) {
+          revealedPlayerIndices.add(i);
+          changed = true;
+        }
+      }
+      if (changed && isHost) renderPlayersList();
+    }
+
+    if (status.allRevealed && !lastAllRevealed && !isHost) {
+      lastAllRevealed = true;
+      const r2 = await fetch('/api/reveal-all', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gameCode: currentGameCode, token: myToken }),
+      });
+      if (r2.ok) {
+        const data = await r2.json();
+        displayRevealAllModal(data);
+      }
+    }
+  } catch (e) {
+    console.error('Polling error:', e);
+  }
+}
+
 function stopPolling() {
   if (pollingInterval) {
     clearInterval(pollingInterval);
@@ -1209,103 +933,159 @@ function stopPolling() {
   }
 }
 
-// Event Listeners
-createGameBtn.addEventListener('click', createGame);
-if (resetBtn) resetBtn.addEventListener('click', resetGame);
-if (revealAllBtn) revealAllBtn.addEventListener('click', revealAll);
-if (startNewGameFromModalBtn) startNewGameFromModalBtn.addEventListener('click', showNewRoundSetup);
-if (closeRevealAllModalBtn) closeRevealAllModalBtn.addEventListener('click', closeRevealAllModal);
-if (switchToJoinBtn) switchToJoinBtn.addEventListener('click', showJoinSection);
-if (backToSetupBtn) backToSetupBtn.addEventListener('click', showCreateSection);
-if (joinGameBtn) joinGameBtn.addEventListener('click', joinGame);
-if (confirmPlayerBtn) confirmPlayerBtn.addEventListener('click', confirmPlayerJoin);
-if (hideModalBtn) hideModalBtn.addEventListener('click', hideRevealModal);
-if (settingsToggle) settingsToggle.addEventListener('click', toggleSettings);
-if (everyoneGetsWordToggle) everyoneGetsWordToggle.addEventListener('change', handleEveryoneGetsWordToggle);
-if (sameCategoryBtn) sameCategoryBtn.addEventListener('click', startNewRoundSameCategory);
-if (startNewRoundBtn) startNewRoundBtn.addEventListener('click', () => startNewRound());
+// ============================================================
+// Init
+// ============================================================
 
-// Allow Enter key in new round category input
-if (newRoundCategoryInput) {
-  newRoundCategoryInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') startNewRound();
-  });
+async function init() {
+  try {
+    const r = await fetch('/api/config');
+    appConfig = await r.json();
+    if (appConfig?.offlineMode && dom.offlineBanner) dom.offlineBanner.classList.remove('hidden');
+
+    const urlParams = new URLSearchParams(window.location.search);
+    const urlGameCode = (urlParams.get('code') || '').toUpperCase();
+    const session = loadSession();
+
+    if (urlGameCode) {
+      // URL has a code. Resume only if session matches.
+      if (session && session.gameCode === urlGameCode && session.token) {
+        if (await tryResume(session)) return;
+      }
+      // Else show JOIN with the code pre-filled (do NOT default to host).
+      const status = await checkActive(urlGameCode);
+      if (status && status.active) {
+        showJoinSection(urlGameCode);
+        joinGame();
+        return;
+      }
+      clearSession();
+      showSetupSection();
+      showStatus('That game code is not active', 'info');
+      return;
+    }
+
+    if (session && session.gameCode && session.token) {
+      if (await tryResume(session)) return;
+    }
+
+    showSetupSection();
+  } catch (e) {
+    console.error('Init error:', e);
+    showStatus('Failed to initialize app', 'error');
+    showSetupSection();
+  }
 }
 
-// Difficulty selection buttons
-difficultyButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    selectDifficulty(btn.dataset.difficulty);
-  });
-});
+async function checkActive(code) {
+  try {
+    const r = await fetch(`/api/status?gameCode=${encodeURIComponent(code)}`);
+    return await r.json();
+  } catch { return null; }
+}
 
-newRoundDifficultyButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    selectNewRoundDifficulty(btn.dataset.difficulty);
-  });
-});
+async function tryResume(session) {
+  const status = await checkActive(session.gameCode);
+  if (!status || !status.active) {
+    clearSession();
+    return false;
+  }
+  currentGameCode = session.gameCode;
+  myPlayerNumber = session.playerNumber;
+  myToken = session.token;
+  isHost = !!session.isHost;
+  currentRoundId = status.roundId;
+  currentGame = {
+    category: status.category,
+    numPlayers: status.numPlayers,
+    playerAssignments: status.playerAssignments || {},
+  };
+  showGameSection();
+  startPolling();
+  return true;
+}
 
-// Player selection buttons
-playerButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const count = btn.dataset.players ? parseInt(btn.dataset.players, 10) : null;
-    selectPlayerCount(count);
-  });
-});
+// ============================================================
+// Event wiring
+// ============================================================
 
-// Imposter selection buttons
-imposterButtons.forEach(btn => {
-  btn.addEventListener('click', () => {
-    const count = parseInt(btn.dataset.imposters, 10);
-    selectImposterCount(count);
-  });
+dom.setup.createBtn.addEventListener('click', createGame);
+if (dom.game.resetBtn) dom.game.resetBtn.addEventListener('click', resetGame);
+if (dom.game.revealAllBtn) dom.game.revealAllBtn.addEventListener('click', revealAll);
+if (dom.revealAllModal.startNewBtn) dom.revealAllModal.startNewBtn.addEventListener('click', showNewRoundSetup);
+if (dom.revealAllModal.closeBtn) dom.revealAllModal.closeBtn.addEventListener('click', closeRevealAllModal);
+if (dom.setup.switchToJoinBtn) dom.setup.switchToJoinBtn.addEventListener('click', () => showJoinSection());
+if (dom.join.backToSetupBtn) dom.join.backToSetupBtn.addEventListener('click', showCreateSection);
+if (dom.join.joinBtn) dom.join.joinBtn.addEventListener('click', joinGame);
+if (dom.pickSlot.confirmBtn) dom.pickSlot.confirmBtn.addEventListener('click', confirmPlayerJoin);
+if (dom.revealModal.hideBtn) dom.revealModal.hideBtn.addEventListener('click', hideRevealModal);
+if (dom.setup.settingsToggle) dom.setup.settingsToggle.addEventListener('click', toggleSettings);
+if (dom.setup.everyoneGetsWordToggle) dom.setup.everyoneGetsWordToggle.addEventListener('change', handleEveryoneGetsWordToggle);
+if (dom.setup.imposterGetsHintToggle) dom.setup.imposterGetsHintToggle.addEventListener('change', () => {
+  updatePref({ imposterGetsHint: !!dom.setup.imposterGetsHintToggle.checked });
 });
+if (dom.setup.chaosModeToggle) dom.setup.chaosModeToggle.addEventListener('change', () => {
+  updatePref({ chaosModeEnabled: !!dom.setup.chaosModeToggle.checked });
+});
+if (dom.newRound.sameCategoryBtn) dom.newRound.sameCategoryBtn.addEventListener('click', startNewRoundSameCategory);
+if (dom.newRound.startBtn) dom.newRound.startBtn.addEventListener('click', () => startNewRound());
 
-// Input handlers
-if (numPlayersInput) {
-  numPlayersInput.addEventListener('input', (e) => {
-    const value = parseInt(e.target.value, 10);
-    if (value >= 4) {
-      impostersGroup.style.display = 'block';
-      updateImposterButtons(value);
-    } else {
-      impostersGroup.style.display = 'none';
-      selectedImposters = 1;
+if (dom.game.copyShareLinkBtn) {
+  dom.game.copyShareLinkBtn.addEventListener('click', async () => {
+    if (!dom.game.shareLink) return;
+    try {
+      await navigator.clipboard.writeText(dom.game.shareLink.value);
+      showStatus('Share link copied!', 'success');
+    } catch {
+      dom.game.shareLink.select();
+      document.execCommand('copy');
+      showStatus('Share link copied!', 'success');
     }
   });
-  
-  numPlayersInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') createGame();
-  });
 }
 
-if (categoryInput) {
-  categoryInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') createGame();
-  });
+if (dom.newRound.categoryInput) {
+  dom.newRound.categoryInput.addEventListener('keypress', e => { if (e.key === 'Enter') startNewRound(); });
 }
 
-if (gameCodeInput) {
-  gameCodeInput.addEventListener('input', (e) => {
+// Stepper wiring
+dom.setup.stepperBtns.forEach(btn => {
+  btn.addEventListener('click', () => {
+    const step = parseInt(btn.dataset.step, 10);
+    const current = parseInt(dom.setup.numPlayers.value, 10) || 3;
+    setNumPlayers(current + step);
+  });
+});
+
+dom.setup.difficultyBtns.forEach(btn =>
+  btn.addEventListener('click', () => selectDifficulty(btn.dataset.difficulty))
+);
+dom.newRound.difficultyBtns.forEach(btn =>
+  btn.addEventListener('click', () => selectNewRoundDifficulty(btn.dataset.difficulty))
+);
+
+dom.setup.imposterBtns.forEach(btn =>
+  btn.addEventListener('click', () => selectImposterCount(parseInt(btn.dataset.imposters, 10)))
+);
+
+if (dom.setup.category) {
+  dom.setup.category.addEventListener('keypress', e => { if (e.key === 'Enter') createGame(); });
+  dom.setup.category.addEventListener('change', () => updatePref({ lastCategory: dom.setup.category.value }));
+}
+
+if (dom.join.code) {
+  dom.join.code.addEventListener('input', e => {
     e.target.value = e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
   });
-  
-  gameCodeInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') joinGame();
-  });
+  dom.join.code.addEventListener('keypress', e => { if (e.key === 'Enter') joinGame(); });
 }
 
-if (revealModal) {
-  revealModal.addEventListener('click', (e) => {
-    if (e.target === revealModal) hideRevealModal();
-  });
-}
+if (dom.revealModal.root) dom.revealModal.root.addEventListener('click', e => {
+  if (e.target === dom.revealModal.root) hideRevealModal();
+});
+if (dom.revealAllModal.root) dom.revealAllModal.root.addEventListener('click', e => {
+  if (e.target === dom.revealAllModal.root) closeRevealAllModal();
+});
 
-if (revealAllModal) {
-  revealAllModal.addEventListener('click', (e) => {
-    if (e.target === revealAllModal) closeRevealAllModal();
-  });
-}
-
-// Initialize
+// Boot
 init();
