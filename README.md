@@ -1,7 +1,8 @@
 # Impostor Game
 
-A web-based impostor/spyfall-style party game with AI-generated words. Works
-on one device (pass-and-play) or many devices (each player joins with a code).
+A web-based impostor/spyfall-style party game with AI-generated words. Each
+role reveal flips a playing card. Works pass-and-play on one device, or
+multi-device with each player joining via a code.
 
 ## Features
 
@@ -13,10 +14,12 @@ on one device (pass-and-play) or many devices (each player joins with a code).
 - **Imposter-gets-a-hint mode** — abstract 1–2 word hint
 - **Chaos mode (opt-in)** — 1 in 20 rounds, everyone is an impostor
 - **Round chaining** with same code, same or different category
-- **Re-viewable reveals** — missed the 10s auto-hide? Tap "Show again"
+- **Re-viewable reveals** — missed the 10s auto-hide? Tap the card again
 - **Per-player tokens** so others can't peek at your role or end the round
 - **Share link with `?code=…`** routes new visitors to the join screen
-- **Cryptographically uniform** impostor selection (proven by chi-square tests)
+- **Crypto-grade RNG** — Node's `crypto.randomInt` for all shuffles; impostor
+  selection is uniform within chi-square significance across 120k+ trials per
+  configuration
 
 ## Run it
 
@@ -33,7 +36,7 @@ sports, fruits, vegetables, professions, colors, instruments, drinks).
 ## Test
 
 ```bash
-npm test           # full integration simulator (118 assertions)
+npm test           # full integration simulator (126 assertions)
 npm run test:rng   # randomizer uniformity (chi-square on 120k+ trials)
 ```
 
@@ -47,7 +50,7 @@ npm run test:rng   # randomizer uniformity (chi-square on 120k+ trials)
    everyone else does. (Or with "everyone gets a word", the impostor sees a
    *different* word.)
 4. **Talk it out**, vote on the impostor.
-5. **Host** taps "Reveal All" to end the round; results appear for all players.
+5. **Host** taps "Show the hand" to end the round; results appear for all players.
 6. **New round, same code** — pick the same category or a new one. Player
    slots are preserved across rounds.
 
@@ -57,7 +60,7 @@ npm run test:rng   # randomizer uniformity (chi-square on 120k+ trials)
   authorization, `crypto.randomInt` for all randomness.
 - **Frontend** (`public/`) — vanilla JS, polling-based sync on `roundId`.
 - **No DB** — state lives in memory and is cleaned up after 24h. Game state
-  is lost on server restart (acceptable for party games).
+  is lost on server restart.
 
 ### Authorization model
 
@@ -80,8 +83,7 @@ A slot's `playerToken` authorizes revealing that slot; otherwise the
 | POST | `/api/reveal-all` | Host-only to end; anyone can fetch results after |
 | POST | `/api/new-game-same-code` | Host-only; bumps `roundId` |
 | POST | `/api/reset` | Host-only |
-| GET  | `/api/status?gameCode=…` | Public; no tokens leaked |
-| GET  | `/api/game/:code` | Lookup for join screen |
+| GET  | `/api/status?gameCode=…` | Public lookup (used for both polling and the join screen); no tokens leaked |
 | GET  | `/api/config` | Public constants + `offlineMode` flag |
 
 ## v2 changelog (relative to v1)
