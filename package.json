@@ -7,7 +7,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "test": "node tests/simulation.js",
-    "test:rng": "node tests/randomizer.js"
+    "test:rng": "node tests/randomizer.js",
+    "test:playwright": "node tests/playwright.js"
   },
   "keywords": [
     "impostor",
