@@ -1,3 +1,5 @@
+(Old project, fixed some bugs recently.)
+
 # Impostor Game
 
 A web-based impostor/spyfall-style party game with AI-generated words. Each
@@ -86,42 +88,6 @@ A slot's `playerToken` authorizes revealing that slot; otherwise the
 `hostToken` authorizes it (so pass-and-play, where no one else has joined,
 "just works"). Once a player joins a slot, the host can no longer peek at it
 — preventing cheating in multi-device games.
-
-### Endpoints (high level)
-
-| Method | Path | Notes |
-|---|---|---|
-| POST | `/api/new-game` | Create, returns `gameCode` + `hostToken` |
-| POST | `/api/game/:code/join` | Returns `playerToken` for the chosen slot |
-| POST | `/api/reveal` | Body: `{playerIndex, gameCode, token}` |
-| POST | `/api/reveal-all` | Host-only to end; anyone can fetch results after |
-| POST | `/api/new-game-same-code` | Host-only; bumps `roundId` |
-| POST | `/api/reset` | Host-only |
-| GET  | `/api/status?gameCode=…` | Public lookup (used for both polling and the join screen); no tokens leaked |
-| GET  | `/api/config` | Public constants + `offlineMode` flag |
-
-## v2 changelog (relative to v1)
-
-- **Fixed the chaos-cascade bug**: after a chaos round, subsequent same-code
-  rounds used to silently make *everyone* the impostor forever. Now the
-  intended impostor count is stored separately and re-used.
-- **Fixed the same-category stranding bug**: non-host clients can now detect
-  a new round via `roundId` (not just by comparing category strings).
-- **Fixed the URL-link host-default bug**: visiting `?code=XXX` without a
-  stored session now routes to the join screen instead of silently treating
-  the visitor as the host.
-- **Fixed the one-time-reveal trap**: re-tapping reveals your role again, as
-  long as you hold the same token. Missing the 10s auto-hide is no longer
-  fatal.
-- **Added token-based authorization** on all mutating endpoints. The status
-  endpoint never leaks tokens.
-- **Made chaos mode opt-in** (default off) — used to be a silent 5% surprise.
-- **Bigger fallback word packs** (12 categories of ~30 items vs. 8 generic).
-- **Round counter** in the game UI.
-- **Rate limiting** on `/api/new-game` (configurable via env).
-- **Multi-provider LLM support** — auto-detects Groq / OpenAI / OpenRouter /
-  Anthropic from the key prefix. Offline mode falls back to local packs when
-  no key is set.
 
 ## License
 
