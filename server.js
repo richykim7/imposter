@@ -14,6 +14,7 @@ const {
   validateNumPlayers,
   validateNumImposters,
   sanitizeWords,
+  sanitizePlayerName,
   parseWordList,
   areWordsTooSimilar,
   pickOfflineWord,
@@ -25,6 +26,24 @@ const PORT = process.env.PORT || 3000;
 const LLM_CREDS = llm.resolveCredentials();
 
 app.set('trust proxy', 1); // for express-rate-limit behind a proxy (Render etc)
+app.disable('x-powered-by'); // don't advertise Express
+
+// Baseline security headers (hand-rolled to keep the dep tree small). The app
+// loads only same-origin assets + a local vendor script, so script-src 'self'
+// is safe; 'unsafe-inline' is allowed for styles only.
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');           // anti-clickjacking
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  res.setHeader(
+    'Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
+    "img-src 'self' data:; connect-src 'self'; object-src 'none'; " +
+    "base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+  );
+  next();
+});
+
 app.use(express.json({ limit: '64kb' }));
 app.use(express.static('public'));
 
@@ -368,7 +387,7 @@ app.post('/api/new-game', newGameLimiter, async (req, res) => {
     });
   } catch (e) {
     console.error('Error creating game:', e);
-    res.status(500).json({ error: 'Failed to create game', details: e.message });
+    res.status(500).json({ error: 'Failed to create game' });
   }
 });
 
@@ -537,7 +556,7 @@ app.post('/api/new-game-same-code', sameCodeLimiter, async (req, res) => {
     });
   } catch (e) {
     console.error('Error creating new round:', e);
-    res.status(500).json({ error: e.message || 'Failed to create new round' });
+    res.status(500).json({ error: 'Failed to create new round' });
   }
 });
 
@@ -611,7 +630,7 @@ app.post('/api/game/:code/join', joinLimiter, (req, res) => {
 
     const playerToken = generateToken();
     gameState.playerAssignments[playerNumber] = {
-      name: (typeof playerName === 'string' && playerName.trim()) || `Player ${playerNumber}`,
+      name: sanitizePlayerName(playerName) || `Player ${playerNumber}`,
       joinedAt: new Date().toISOString(),
       playerToken,
     };
