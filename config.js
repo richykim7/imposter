@@ -26,7 +26,19 @@ module.exports = {
   // Round/word history
   MAX_PREVIOUS_WORDS: 50,
 
-  // Rate limiting (env-overridable for testing)
+  // Rate limiting (env-overridable for testing). Window is per IP.
+  // NOTE: limits are sized for a whole shared network (household/venue NAT can
+  // put ~15 legit players on one IP), so only the abusable/costly endpoints are
+  // tight. Counters are in-memory — fine for a single Render instance; they
+  // reset on restart and are not shared across instances.
+  RATE_LIMIT_WINDOW_MS: Number(process.env.RATE_LIMIT_WINDOW_MS) || 60 * 1000,
+  // Game/round creation both trigger paid LLM calls — keep these tight.
   NEW_GAME_RATE_LIMIT_WINDOW_MS: Number(process.env.NEW_GAME_RATE_LIMIT_WINDOW_MS) || 60 * 1000,
-  NEW_GAME_RATE_LIMIT_MAX: Number(process.env.NEW_GAME_RATE_LIMIT_MAX) || 20, // per IP per window
+  NEW_GAME_RATE_LIMIT_MAX: Number(process.env.NEW_GAME_RATE_LIMIT_MAX) || 20,
+  SAME_CODE_RATE_LIMIT_MAX: Number(process.env.SAME_CODE_RATE_LIMIT_MAX) || 12,
+  // Slot claim — only FAILED attempts count, to stop game-code brute-forcing
+  // without punishing a room of legit players joining at once.
+  JOIN_RATE_LIMIT_MAX: Number(process.env.JOIN_RATE_LIMIT_MAX) || 30,
+  // Loose catch-all safety net; /api/status polling is exempted from it.
+  GLOBAL_RATE_LIMIT_MAX: Number(process.env.GLOBAL_RATE_LIMIT_MAX) || 600,
 };

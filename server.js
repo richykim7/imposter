@@ -107,7 +107,6 @@ async function generateWord(category, previousWords = [], retry = 0, difficulty 
 - NO quotes, NO punctuation at the end of each word
 - NO explanations, NO extra text, NO numbering
 ${difficultyLine}
-- Keep them appropriate for all ages
 ${isProperNoun ? '- Use ACTUAL proper nouns/names, NOT descriptions.' : '- Use concrete, specific examples.'}`;
 
   const userPrompt = `Category: ${category}\n\nGenerate 10 different words or short phrases (one per line):`;
@@ -259,16 +258,55 @@ function generateUniqueGameCode() {
 }
 
 // ============================================================
-// Rate limiter for expensive endpoint
+// Rate limiters
 // ============================================================
+// Per-IP, in-memory. `trust proxy` is set to 1 above so req.ip is the real
+// client IP behind Render's proxy (not the proxy itself).
 
+const baseLimiter = (max, message, extra = {}) => rateLimit({
+  windowMs: config.RATE_LIMIT_WINDOW_MS,
+  limit: max,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: message },
+  ...extra,
+});
+
+// Loose catch-all safety net. Exempts /api/status, which every client polls
+// every 2s (a 15-player room is ~450 legit req/min on one IP).
+const globalLimiter = baseLimiter(
+  config.GLOBAL_RATE_LIMIT_MAX,
+  'Too many requests — please slow down.',
+  { skip: (req) => req.method === 'GET' && req.path === '/api/status' }
+);
+
+// Game creation — triggers paid LLM calls.
 const newGameLimiter = rateLimit({
   windowMs: config.NEW_GAME_RATE_LIMIT_WINDOW_MS,
-  max: config.NEW_GAME_RATE_LIMIT_MAX,
+  limit: config.NEW_GAME_RATE_LIMIT_MAX,
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many new games — please slow down.' },
 });
+
+// New round on an existing game — ALSO triggers paid LLM calls. This was the
+// main unprotected cost hole: it could be spammed to burn LLM budget.
+const sameCodeLimiter = baseLimiter(
+  config.SAME_CODE_RATE_LIMIT_MAX,
+  'Too many new rounds — please slow down.'
+);
+
+// Joining a slot by game code. Only FAILED attempts count toward the limit
+// (skipSuccessfulRequests), so real players joining/retrying aren't throttled
+// but a code-guessing attacker — who only ever fails — is cut off fast.
+const joinLimiter = baseLimiter(
+  config.JOIN_RATE_LIMIT_MAX,
+  'Too many join attempts — please slow down.',
+  { skipSuccessfulRequests: true }
+);
+
+// Mount the catch-all before the routes; per-route limiters stack on top.
+app.use(globalLimiter);
 
 // ============================================================
 // Endpoints
@@ -433,7 +471,7 @@ app.post('/api/reveal-all', (req, res) => {
  * Host-only. KEY FIX: uses stored `numImposters` (intent), not
  * impostorIndices.length, so a chaos round can't poison subsequent rounds.
  */
-app.post('/api/new-game-same-code', async (req, res) => {
+app.post('/api/new-game-same-code', sameCodeLimiter, async (req, res) => {
   const {
     gameCode,
     token,
@@ -552,7 +590,7 @@ app.get('/api/status', (req, res) => {
  * POST /api/game/:code/join
  * Claim a player slot. Returns a per-player token.
  */
-app.post('/api/game/:code/join', (req, res) => {
+app.post('/api/game/:code/join', joinLimiter, (req, res) => {
   try {
     const code = String(req.params.code || '').toUpperCase();
     const { playerNumber, playerName = '' } = req.body || {};
