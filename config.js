@@ -6,7 +6,7 @@
 module.exports = {
   // Game bounds
   MIN_PLAYERS: 3,
-  MAX_PLAYERS: 12,
+  MAX_PLAYERS: 15,
   DEFAULT_PLAYERS: 3,
 
   // Category validation

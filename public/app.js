@@ -311,7 +311,7 @@ function renderHostPlayersList() {
 
 function setNumPlayers(n) {
   const min = Number(dom.setup.numPlayers.min) || (appConfig?.minPlayers || 3);
-  const max = Number(dom.setup.numPlayers.max) || (appConfig?.maxPlayers || 12);
+  const max = Number(dom.setup.numPlayers.max) || (appConfig?.maxPlayers || 15);
   const clamped = Math.max(min, Math.min(max, n));
   dom.setup.numPlayers.value = String(clamped);
   selectedPlayers = clamped;
@@ -427,8 +427,8 @@ async function createGame() {
   const category = (dom.setup.category.value || '').trim();
   const numPlayers = parseInt(dom.setup.numPlayers.value, 10);
   if (!category) { showStatus('Please enter a category', 'error'); return; }
-  if (isNaN(numPlayers) || numPlayers < (appConfig?.minPlayers || 3) || numPlayers > (appConfig?.maxPlayers || 12)) {
-    showStatus(`Please pick a valid number of players (${appConfig?.minPlayers || 3}-${appConfig?.maxPlayers || 12})`, 'error');
+  if (isNaN(numPlayers) || numPlayers < (appConfig?.minPlayers || 3) || numPlayers > (appConfig?.maxPlayers || 15)) {
+    showStatus(`Please pick a valid number of players (${appConfig?.minPlayers || 3}-${appConfig?.maxPlayers || 15})`, 'error');
     return;
   }
 
